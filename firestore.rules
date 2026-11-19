@@ -1,0 +1,30 @@
+rules_version = '2';
+// Regles de seguretat de Firestore per a «combina ≈»
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Puntuació d'un jugador en un dia: tothom la pot llegir;
+    // només el mateix jugador la pot crear, una sola vegada i amb valors vàlids.
+    match /days/{day}/scores/{uid} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.total is int
+        && request.resource.data.total >= 0
+        && request.resource.data.total <= 1000
+        && request.resource.data.levels is list
+        && request.resource.data.levels.size() == 5;
+      allow update, delete: if false;
+    }
+
+    // Resum acumulat del jugador (rànquing total)
+    match /players/{uid} {
+      allow read: if true;
+      allow create, update: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.sum is int
+        && request.resource.data.sum >= 0;
+      allow delete: if false;
+    }
+  }
+}
