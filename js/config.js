@@ -14,14 +14,15 @@ window.COMBINA_CONFIG = {
   // Els 5 objectius de cada dia sumen aquesta quantitat (= puntuació màxima del dia)
   dailyTotal: 1000,
 
-  // null = mode local (sense inici de sessió ni rànquing compartit)
-  firebase: null
-  /* Exemple:
+  // Projecte de Firebase (inici de sessió amb Google i rànquing compartit).
+  // Aquestes dades són públiques per disseny; la seguretat la donen les regles de Firestore.
+  // Posa-hi null per tornar al mode local.
   firebase: {
-    apiKey: 'AIza...',
-    authDomain: 'el-teu-projecte.firebaseapp.com',
-    projectId: 'el-teu-projecte',
-    appId: '1:000000000000:web:0000000000000000'
+    apiKey: 'AIzaSyAH7PbiYKLO18VRBiAb8ZhPKC1B1uGIuqg',
+    authDomain: 'combina-a85c4.firebaseapp.com',
+    projectId: 'combina-a85c4',
+    storageBucket: 'combina-a85c4.firebasestorage.app',
+    messagingSenderId: '687629086327',
+    appId: '1:687629086327:web:16c0884ab30f78302ce072'
   }
-  */
 };
