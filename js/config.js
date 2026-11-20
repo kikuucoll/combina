@@ -11,9 +11,12 @@ window.COMBINA_CONFIG = {
   levelSeconds: [30, 35, 40, 45, 50],
   // Xifres per nivell
   levelCounts: [4, 5, 6, 7, 8],
-  // Els 5 objectius de cada dia sumen aquesta quantitat (= puntuació màxima del dia)
-  dailyTotal: 1000,
-  // Cada unitat de distància a l'objectiu resta aquesta fracció dels punts del nivell (0.1 = 10 %)
+  // Puntuació màxima del dia (5 rondes × 100 punts)
+  dailyTotal: 500,
+  levelMax: 100,
+  // Punts màxims d'una ronda segons les xifres usades: de levelBase (poques) a levelMax (totes)
+  levelBase: 70,
+  // Cada unitat de distància a l'objectiu resta aquesta fracció dels punts (0.1 = 10 %)
   penaltyPerUnit: 0.1,
 
   // Projecte de Firebase (inici de sessió amb Google i rànquing compartit).

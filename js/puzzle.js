@@ -92,13 +92,15 @@
    *  N3 — apareixen (poc) les potències i les arrels.
    *  N4–N5 — el repte de debò.
    * Els primers 7 reptes des del llançament són encara més assequibles. */
-  // Els 5 objectius de cada dia sumen sempre DAILY_TOTAL (puntuació màxima del dia)
+  // Objectius petits i assequibles. La solució de referència fa servir SEMPRE totes les xifres
+  // (k = nombre de xifres), així els 100 punts de cada ronda sempre són possibles.
+  // w = pesos de + − × ÷ (sobretot sumes i restes).
   var SPEC = [
-    { lo: 20,  hi: 80,  k: [2, 3], w: [0.42, 0.18, 0.40, 0],    pow: 0,    root: 0,   needMul: false, strong: 0 },
-    { lo: 60,  hi: 180, k: [3, 4], w: [0.30, 0.20, 0.38, 0.12], pow: 0,    root: 0,   needMul: true,  strong: 0 },
-    { lo: 120, hi: 260, k: [3, 5], w: [0.30, 0.20, 0.38, 0.12], pow: 0.25, root: 0.2, needMul: true,  strong: 0 },
-    { lo: 180, hi: 340, k: [4, 6], w: [0.30, 0.20, 0.36, 0.14], pow: 0.45, root: 0.3, needMul: true,  strong: 0.5 },
-    { lo: 250, hi: 480, k: [5, 7], w: [0.30, 0.20, 0.36, 0.14], pow: 0.5,  root: 0.3, needMul: true,  strong: 0.7 }
+    { lo: 10, hi: 50,  k: [4, 4], w: [0.46, 0.32, 0.22, 0],    pow: 0,    root: 0,    needMul: false, strong: 0 },
+    { lo: 12, hi: 70,  k: [5, 5], w: [0.44, 0.32, 0.20, 0.04], pow: 0,    root: 0,    needMul: false, strong: 0 },
+    { lo: 15, hi: 100, k: [6, 6], w: [0.42, 0.32, 0.20, 0.06], pow: 0.08, root: 0.08, needMul: false, strong: 0 },
+    { lo: 20, hi: 130, k: [7, 7], w: [0.42, 0.32, 0.20, 0.06], pow: 0.15, root: 0.12, needMul: false, strong: 0 },
+    { lo: 25, hi: 160, k: [8, 8], w: [0.42, 0.32, 0.20, 0.06], pow: 0.2,  root: 0.15, needMul: false, strong: 0 }
   ];
   var PREC = { '^': 3, '*': 2, '/': 2, '+': 1, '-': 1 };
 
@@ -220,14 +222,15 @@
   var cache = {};
   function generateDay(k) {
     if (cache[k]) return cache[k];
-    var c = cfg(), total = c.dailyTotal || 1000;
-    var n = challengeNumber(k), levels = null;
-    for (var round = 0; round < 6 && !levels; round++) {
-      var cands = c.levelCounts.map(function (count, i) {
-        return genCandidates(rngFor('combina|' + k + '|' + i + '|' + round), count, i, n, i >= 3 ? 40 : 25);
-      });
-      levels = pickDay(cands, total, rngFor('combina|' + k + '|sum|' + round));
-    }
+    var c = cfg(), total = c.dailyTotal || 500;
+    var n = challengeNumber(k);
+    var levels = c.levelCounts.map(function (count, i) {
+      var cand = genCandidates(rngFor('combina|' + k + '|' + i), count, i, n, 1)[0];
+      if (cand) return cand;
+      // Reserva (pràcticament impossible): la suma de totes les xifres
+      var nums = shuffle(rngFor('combina|' + k + '|' + i + '|r'), Array.from({ length: 20 }, function (_, j) { return j + 1; })).slice(0, count);
+      return { count: count, nums: nums, target: nums.reduce(function (a, b) { return a + b; }, 0), solution: nums.join(' + ') };
+    });
     cache[k] = { key: k, number: n, total: total, levels: levels };
     return cache[k];
   }

@@ -44,7 +44,8 @@
   }
   function totalOf(d) { return (d.levels || []).reduce((s, l) => s + (l && l.done ? l.points : 0), 0); }
   function exactOf(d) { return (d.levels || []).filter(l => l && l.done && l.exact).length; }
-  function maxTotal() { return state.puzzle.total || C.dailyTotal || 1000; }
+  function maxTotal() { return C.dailyTotal || 500; }
+  const LEVEL_MAX = C.levelMax || 100;
   function doneCount(d) { return (d.levels || []).filter(l => l && l.done).length; }
   function secsFor(i) { return C.levelSeconds[i]; }
   function remaining(st, i) { return secsFor(i) - (Date.now() - st.startAt) / 1000; }
@@ -86,7 +87,7 @@
     { id: 'fast', g: 'Δt', name: 'Llampec', desc: 'Encerta un objectiu en menys de 10 segons.' },
     { id: 'edge', g: 'ε', name: 'Al límit', desc: 'Encerta un objectiu quan queden menys de 5 segons.' },
     { id: 'eight', g: '8', name: 'Vuit xifres', desc: 'Encerta exactament el nivell 5.' },
-    { id: 'qed', g: '∎', name: 'Q.E.D.', desc: 'Fes un dia perfecte: 1000 punts.' },
+    { id: 'qed', g: '∎', name: 'Q.E.D.', desc: 'Fes un dia perfecte: 500 punts.' },
     { id: 's3', g: '△', name: 'Triangle', desc: 'Ratxa de 3 dies seguits.' },
     { id: 's7', g: '7', name: 'Setmana rodona', desc: 'Ratxa de 7 dies seguits.' },
     { id: 's14', g: '14', name: 'Quinzena', desc: 'Ratxa de 14 dies seguits.' },
@@ -338,13 +339,13 @@
 
   function tutorialDone() {
     return `<div class="card tut-done">
-      <p class="pop exact">+10</p>
+      <p class="pop exact">+100</p>
       <p class="tut-done-title">Exacte! Ja saps jugar.</p>
       <ul class="tut-rules">
         <li><b>Cada dia a les 9:00</b>, un repte nou amb <b>5 nivells</b> (de 4 a 8 xifres de l'1 al 20).</li>
         <li>Tens de <b>30 a 50 segons</b> per nivell. Si s'acaba el temps, es corregeix el que hi hagi.</li>
         <li>Pots fer servir <b>+ − × ÷</b>, <b>parèntesis</b>, <b>potències</b> (l'exponent és una xifra) i <b>arrels</b>.</li>
-        <li><b>La precisió ho és tot.</b> Si l'encertes, guanyes tants punts com l'objectiu. <b>Cada unitat de distància resta un 10 %</b>: a 1, el 90 %; a 5, la meitat; a 10 o més, 0. Els 5 objectius de cada dia sumen <b>1000</b>.</li>
+        <li><b>Cada ronda val fins a 100 punts</b> (500 al dia). Si encertes l'objectiu fent servir <b>totes les xifres</b>, en fas 100; amb menys xifres, el màxim baixa fins a 70. <b>Cada unitat de distància resta un 10 %</b>: a 1, el 90 %; a 5, la meitat; a 10 o més, 0.</li>
         <li>Amb el total del dia, aconsegueixes la medalla d'un dels <b>cinc savis</b>. Juga cada dia per allargar la <b>ratxa</b> i guanyar <b>segells</b>.</li>
       </ul>
       <button type="button" class="btn btn-primary" data-action="tut-finish">Comença el repte d'avui</button>
@@ -370,7 +371,7 @@
   function tutSubmit() {
     const r = E.value(state.tut.tokens);
     if (!r.ok) return nudge();
-    const pts = E.points(TUT.target, r.v);
+    const pts = E.points(TUT.target, r.v, E.tilesUsed(state.tut.tokens), TUT.count);
     if (E.distance(TUT.target, r.v) === 0) {
       state.tutResult = { exact: true, points: pts };
       store.seenHelp = true; save();
@@ -505,7 +506,7 @@
         <div class="game-main">
           <div class="target"><p class="kicker">Objectiu</p><p class="target-num">${L.target}</p></div>
           ${b.expr}${b.tiles}
-          <p class="hint">Cada xifra, un sol cop. Cada unitat de distància resta un 10 %.</p>
+          <p class="hint">Cada xifra, un sol cop. Fer-les servir totes dona més punts; cada unitat de distància resta un 10 %.</p>
         </div>
         ${b.keypad}
       </div>
@@ -536,7 +537,7 @@
     const r = E.value(st.tokens);
     const lv = document.getElementById('live-val'), lp = document.getElementById('live-pts'), sb = document.getElementById('submit');
     if (r.ok) {
-      const d = E.distance(L.target, r.v), pts = E.points(L.target, r.v);
+      const d = E.distance(L.target, r.v), pts = E.points(L.target, r.v, E.tilesUsed(st.tokens), L.count);
       lv.textContent = '= ' + E.fmt(r.v);
       lp.textContent = d === 0 ? 'Exacte! · ' + pts + ' punts' : 'a ' + E.fmt(d) + ' · ara ' + pts + ' punts';
       lp.className = 'pill' + (d === 0 ? ' exact' : '');
@@ -590,7 +591,11 @@
     st.done = true;
     st.timeout = !!timeout;
     st.endAt = Math.min(Date.now(), st.startAt + secsFor(i) * 1000);
-    if (r.ok) { st.value = r.v; st.points = E.points(L.target, r.v); st.exact = E.distance(L.target, r.v) === 0; }
+    if (r.ok) {
+      st.value = r.v; st.used = E.tilesUsed(st.tokens);
+      st.points = E.points(L.target, r.v, st.used, L.count);
+      st.exact = E.distance(L.target, r.v) === 0;
+    }
     else { st.value = null; st.points = 0; st.err = r.empty ? 'No hi havia cap expressió' : r.err; }
     d.total = totalOf(d);
     state.celebrations = [];
@@ -669,12 +674,12 @@
       body += `<div class="card empty-corr step" style="--d:.2s"><p class="step-expr">${st.tokens.length ? E.toHTML(st.tokens) : '—'}</p><p class="muted">${esc(st.err || 'Expressió no vàlida')}</p></div>`;
     }
 
-    const ratio = st.points / L.target;
-    const msg = st.exact ? 'Exacte! Punts plens.' : ratio >= 0.9 ? 'Molt a prop.' : st.points > 0 ? 'Cada intent suma.' : 'Aquesta vegada no ha sortit.';
-    const dd = r.ok ? E.distance(L.target, r.v) : null;
+    const used = E.tilesUsed(st.tokens), allUsed = used === L.count;
+    const msg = st.points >= LEVEL_MAX ? 'Perfecte! Exacte i amb totes les xifres.'
+      : st.exact ? (allUsed ? 'Exacte!' : 'Exacte! Amb totes les xifres hauries fet 100.')
+      : st.points >= 80 ? 'Molt a prop.' : st.points > 0 ? 'Cada intent suma.' : 'Aquesta vegada no ha sortit.';
     const formula = !r.ok ? 'sense resultat vàlid · 0 punts'
-      : dd === 0 ? `exacte · 100 % de ${L.target} = ${st.points} punts`
-      : `a ${E.fmt(dd)} · −10 % per unitat → ${E.fmt(E.percent(L.target, r.v))} % de ${L.target} = ${st.points} punts`;
+      : `precisió ${E.fmt(E.percent(L.target, r.v))} %${E.distance(L.target, r.v) ? ' (a ' + E.fmt(E.distance(L.target, r.v)) + ')' : ''} × ${E.fmt(Math.round(E.roundMax(used, L.count) * 10) / 10)} punts (${used}/${L.count} xifres) = ${st.points} punts`;
     return `<section class="screen correccio">
       <header class="corr-head">
         <div><p class="kicker">Nivell ${i + 1} · Correcció${st.timeout ? ' · temps esgotat' : ''}</p><h1 class="title sm">Pas a pas</h1></div>
@@ -682,7 +687,7 @@
       </header>
       ${body}
       <section class="points step" style="--d:${delayEnd.toFixed(1)}s" aria-live="polite">
-        <span class="pop" id="pts-pop" data-to="${st.points}" data-max="${L.target}" data-delay="${delayEnd.toFixed(2)}" aria-label="${st.points} punts de ${L.target}">+0</span>
+        <span class="pop" id="pts-pop" data-to="${st.points}" data-max="${LEVEL_MAX}" data-delay="${delayEnd.toFixed(2)}" aria-label="${st.points} punts de ${LEVEL_MAX}">+0</span>
         <span class="muted">punts<br>${msg}</span>
       </section>
       <p class="bands step" style="--d:${delayEnd.toFixed(1)}s">${formula}</p>
@@ -821,7 +826,7 @@
     if (!d.finished) return screenAvui();
     const total = totalOf(d), r = SV.rankFor(total), MAX = maxTotal();
     const bars = state.puzzle.levels.map((_, i) => {
-      const st = d.levels[i], p = st ? st.points : 0, T = state.puzzle.levels[i].target, c = levelColor(p, T);
+      const st = d.levels[i], p = st ? st.points : 0, T = LEVEL_MAX, c = levelColor(p, T);
       return `<div class="bar-row"><span class="muted">N${i + 1}</span><span class="bar"><i style="width:0;background:${c.color};box-shadow:0 0 8px rgba(${c.rgb},.5)" data-w="${Math.round(p / T * 100)}%"></i></span><b>${p}<small>/${T}</small></b></div>`;
     }).join('');
     const rankLine = `<div class="rank-line" aria-hidden="true">
@@ -872,7 +877,7 @@
 
   function share() {
     const d = day(), total = totalOf(d), r = SV.rankFor(total);
-    const marks = state.puzzle.levels.map((L, i) => { const st = d.levels[i]; return st && st.exact ? '■' : st && st.points >= L.target / 2 ? '▣' : '□'; }).join('');
+    const marks = state.puzzle.levels.map((L, i) => { const st = d.levels[i]; return st && st.points >= LEVEL_MAX ? '■' : st && st.points >= LEVEL_MAX / 2 ? '▣' : '□'; }).join('');
     const text = `combina ≈ · repte nº ${state.puzzle.number}\n${marks}  ${total}/${maxTotal()} · ${r.name} · ratxa ${streak()}`;
     const url = location.href.split('#')[0];
     if (navigator.share) navigator.share({ title: 'combina ≈', text: text, url: url }).catch(() => {});
@@ -1000,7 +1005,7 @@
     </article>`).join('');
     return `<section class="screen savis">
       ${header()}
-      <p class="kicker">Rangs diaris · 0 – 1000 punts</p>
+      <p class="kicker">Rangs diaris · 0 – ${maxTotal()} punts</p>
       <h1 class="title">Els cinc savis</h1>
       <p class="lead">Segons els punts del dia, acabes el repte al costat d'un d'ells. Com més t'acostes a l'objectiu, més brilla la medalla.</p>
       <div class="sage-grid">${cards}</div>

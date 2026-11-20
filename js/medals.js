@@ -3,19 +3,19 @@
   'use strict';
 
   var SAVIS = [
-    { key: 'pitagores', n: 1, name: 'Pitàgores', min: 0, max: 200, color: '#EDE8DC', rgb: '237,232,220', colorName: 'Blanc',
+    { key: 'pitagores', n: 1, name: 'Pitàgores', min: 0, max: 100, color: '#EDE8DC', rgb: '237,232,220', colorName: 'Blanc',
       fact: 'a² + b² = c²', era: 'Samos, s. VI aC',
       bio: 'Filòsof i matemàtic grec. La seva escola va fer dels nombres la clau per entendre el món, i el teorema que porta el seu nom relaciona els costats del triangle rectangle.', glyph: '' },
-    { key: 'hipatia', n: 2, name: 'Hipàtia', min: 201, max: 400, color: '#86C9A6', rgb: '134,201,166', colorName: 'Verd',
+    { key: 'hipatia', n: 2, name: 'Hipàtia', min: 101, max: 200, color: '#86C9A6', rgb: '134,201,166', colorName: 'Verd',
       fact: 'Àlgebra i estrelles', era: 'Alexandria, c. 355–415',
       bio: 'Matemàtica, astrònoma i filòsofa, la primera dona matemàtica de qui coneixem bé la vida. Va ensenyar i comentar obres d’àlgebra i de geometria, i va estudiar el cel amb astrolabis.', glyph: '' },
-    { key: 'arquimedes', n: 3, name: 'Arquimedes', min: 401, max: 600, color: '#7FA6DB', rgb: '127,166,219', colorName: 'Blau',
+    { key: 'arquimedes', n: 3, name: 'Arquimedes', min: 201, max: 300, color: '#7FA6DB', rgb: '127,166,219', colorName: 'Blau',
       fact: '3 10⁄71 < π < 3 1⁄7', era: 'Siracusa, c. 287–212 aC',
       bio: 'El gran matemàtic i enginyer de l’antiguitat. Va acotar el nombre π, va calcular àrees i volums (l’esfera és 2/3 del cilindre) i va explicar la palanca i per què suren els cossos.', glyph: 'π' },
-    { key: 'noether', n: 4, name: 'Noether', min: 601, max: 800, color: '#B9C3D0', rgb: '185,195,208', colorName: 'Plata',
+    { key: 'noether', n: 4, name: 'Noether', min: 301, max: 400, color: '#B9C3D0', rgb: '185,195,208', colorName: 'Plata',
       fact: 'Simetria ⇒ conservació', era: 'Erlangen, 1882–1935',
       bio: 'Emmy Noether, una de les grans creadores de l’àlgebra moderna. El seu teorema demostra que cada simetria de la natura amaga una quantitat que es conserva, com l’energia.', glyph: '∂' },
-    { key: 'gauss', n: 5, name: 'Gauss', min: 801, max: 1000, color: '#E6B85C', rgb: '230,184,92', colorName: 'Or',
+    { key: 'gauss', n: 5, name: 'Gauss', min: 401, max: 500, color: '#E6B85C', rgb: '230,184,92', colorName: 'Or',
       fact: '1 + 2 + … + 100 = 5050', era: 'Brunsvic, 1777–1855',
       bio: 'El «príncep dels matemàtics». Als 19 anys va demostrar que el polígon de 17 costats es pot construir amb regle i compàs, i va transformar l’aritmètica, l’estadística i l’astronomia.', glyph: 'Σ' }
   ];

@@ -194,9 +194,20 @@
     var d = distance(target, v);
     return Math.max(0, Math.round((1 - penalty() * d) * 1000) / 10);
   }
-  function points(target, v) {
-    if (distance(target, v) === 0) return target;
-    return Math.max(0, Math.floor(target * percent(target, v) / 100));
+  /* Punts màxims d'una ronda segons les xifres usades: de levelBase (70) a levelMax (100, totes) */
+  function roundMax(used, count) {
+    var c = (typeof window !== 'undefined' ? window : globalThis).COMBINA_CONFIG || {};
+    var top = c.levelMax || 100, base = c.levelBase == null ? 70 : c.levelBase;
+    if (!count) return top;
+    var u = used == null ? count : Math.max(0, Math.min(count, used));
+    return base + (top - base) * u / count;
+  }
+  /* Punts = precisió × màxim per xifres usades. Exacte amb totes les xifres = 100. */
+  function points(target, v, used, count) {
+    return Math.max(0, Math.floor(roundMax(used, count) * percent(target, v) / 100 + 1e-9));
+  }
+  function tilesUsed(tokens) {
+    return tokens.filter(function (t) { return t.t === 'num'; }).length;
   }
 
   /* ---------- Correcció pas a pas ---------- */
@@ -275,7 +286,7 @@
   global.Expr = {
     OPS: OPS, fmt: fmt, allowed: allowed, usedTiles: usedTiles, toHTML: toHTML,
     parse: parse, evaluate: evaluate, completed: completed, value: value,
-    distance: distance, points: points, percent: percent, steps: steps, solutionHTML: solutionHTML,
+    distance: distance, points: points, percent: percent, roundMax: roundMax, tilesUsed: tilesUsed, steps: steps, solutionHTML: solutionHTML,
     openCount: openCount
   };
 })(typeof window !== 'undefined' ? window : globalThis);
