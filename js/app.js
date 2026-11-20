@@ -578,9 +578,15 @@
   }
   function stopTicker() { if (state.ticker) { clearInterval(state.ticker); state.ticker = null; } }
 
+  /* Esdeveniment anònim a GoatCounter (si està carregat; sense dades personals) */
+  function track(name, title) {
+    try { if (window.goatcounter && window.goatcounter.count) window.goatcounter.count({ path: name, title: title || name, event: true }); } catch (e) {}
+  }
+
   function startLevel() {
     const d = day(), i = state.level;
     if (d.levels[i] && d.levels[i].startAt) return;
+    if (i === 0) track('repte-comencat', 'Repte començat');
     d.levels[i] = { tokens: [], startAt: Date.now(), done: false };
     save();
     render();
@@ -603,7 +609,7 @@
     d.total = totalOf(d);
     state.celebrations = [];
     onLevelDone(i, st, L);
-    if (doneCount(d) === state.puzzle.levels.length) { d.finished = true; onDayFinished(); submitDay(); }
+    if (doneCount(d) === state.puzzle.levels.length) { d.finished = true; onDayFinished(); submitDay(); track('repte-acabat', 'Repte acabat'); }
     save();
     go('correccio');
   }
