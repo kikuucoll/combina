@@ -184,11 +184,19 @@
   function distance(target, v) {
     return Math.round(Math.abs(target - v) * 1e6) / 1e6;
   }
-  /* Punts = objectiu − distància (mínim 0). Exacte = tants punts com l'objectiu. */
-  function points(target, v) {
+  /* Precisió: cada unitat de distància resta un 10 % dels punts del nivell.
+   * Exacte = 100 % de l'objectiu · a 1 = 90 % · a 5 = 50 % · a 10 o més = 0. */
+  function penalty() {
+    var c = (typeof window !== 'undefined' ? window : globalThis).COMBINA_CONFIG;
+    return (c && c.penaltyPerUnit) || 0.1;
+  }
+  function percent(target, v) {
     var d = distance(target, v);
-    if (d === 0) return target;
-    return Math.max(0, Math.floor(target - d));
+    return Math.max(0, Math.round((1 - penalty() * d) * 1000) / 10);
+  }
+  function points(target, v) {
+    if (distance(target, v) === 0) return target;
+    return Math.max(0, Math.floor(target * percent(target, v) / 100));
   }
 
   /* ---------- Correcció pas a pas ---------- */
@@ -267,7 +275,7 @@
   global.Expr = {
     OPS: OPS, fmt: fmt, allowed: allowed, usedTiles: usedTiles, toHTML: toHTML,
     parse: parse, evaluate: evaluate, completed: completed, value: value,
-    distance: distance, points: points, steps: steps, solutionHTML: solutionHTML,
+    distance: distance, points: points, percent: percent, steps: steps, solutionHTML: solutionHTML,
     openCount: openCount
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -342,7 +342,7 @@
         <li><b>Cada dia a les 9:00</b>, un repte nou amb <b>5 nivells</b> (de 4 a 8 xifres de l'1 al 20).</li>
         <li>Tens de <b>30 a 50 segons</b> per nivell. Si s'acaba el temps, es corregeix el que hi hagi.</li>
         <li>Pots fer servir <b>+ − × ÷</b>, <b>parèntesis</b>, <b>potències</b> (l'exponent és una xifra) i <b>arrels</b>.</li>
-        <li><b>Punts = objectiu − distància.</b> Si l'encertes, guanyes tants punts com l'objectiu. Els 5 objectius de cada dia sumen <b>1000</b>.</li>
+        <li><b>La precisió ho és tot.</b> Si l'encertes, guanyes tants punts com l'objectiu. <b>Cada unitat de distància resta un 10 %</b>: a 1, el 90 %; a 5, la meitat; a 10 o més, 0. Els 5 objectius de cada dia sumen <b>1000</b>.</li>
         <li>Amb el total del dia, aconsegueixes la medalla d'un dels <b>cinc savis</b>. Juga cada dia per allargar la <b>ratxa</b> i guanyar <b>segells</b>.</li>
       </ul>
       <button type="button" class="btn btn-primary" data-action="tut-finish">Comença el repte d'avui</button>
@@ -503,7 +503,7 @@
         <div class="game-main">
           <div class="target"><p class="kicker">Objectiu</p><p class="target-num">${L.target}</p></div>
           ${b.expr}${b.tiles}
-          <p class="hint">Cada xifra, un sol cop. No cal fer-les servir totes.</p>
+          <p class="hint">Cada xifra, un sol cop. Cada unitat de distància resta un 10 %.</p>
         </div>
         ${b.keypad}
       </div>
@@ -669,7 +669,10 @@
 
     const ratio = st.points / L.target;
     const msg = st.exact ? 'Exacte! Punts plens.' : ratio >= 0.9 ? 'Molt a prop.' : st.points > 0 ? 'Cada intent suma.' : 'Aquesta vegada no ha sortit.';
-    const formula = r.ok ? `punts = ${L.target} − ${E.fmt(E.distance(L.target, r.v))} = ${st.points}` : 'punts = objectiu − distància';
+    const dd = r.ok ? E.distance(L.target, r.v) : null;
+    const formula = !r.ok ? 'sense resultat vàlid · 0 punts'
+      : dd === 0 ? `exacte · 100 % de ${L.target} = ${st.points} punts`
+      : `a ${E.fmt(dd)} · −10 % per unitat → ${E.fmt(E.percent(L.target, r.v))} % de ${L.target} = ${st.points} punts`;
     return `<section class="screen correccio">
       <header class="corr-head">
         <div><p class="kicker">Nivell ${i + 1} · Correcció${st.timeout ? ' · temps esgotat' : ''}</p><h1 class="title sm">Pas a pas</h1></div>

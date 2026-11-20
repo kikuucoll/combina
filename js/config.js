@@ -13,6 +13,8 @@ window.COMBINA_CONFIG = {
   levelCounts: [4, 5, 6, 7, 8],
   // Els 5 objectius de cada dia sumen aquesta quantitat (= puntuació màxima del dia)
   dailyTotal: 1000,
+  // Cada unitat de distància a l'objectiu resta aquesta fracció dels punts del nivell (0.1 = 10 %)
+  penaltyPerUnit: 0.1,
 
   // Projecte de Firebase (inici de sessió amb Google i rànquing compartit).
   // Aquestes dades són públiques per disseny; la seguretat la donen les regles de Firestore.
