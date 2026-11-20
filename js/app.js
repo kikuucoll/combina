@@ -245,6 +245,8 @@
     if (state.screen === 'joc') afterJocRender();
     if (state.screen === 'tutorial') updateGame();
     if (state.screen === 'ranquing') loadRanking();
+    if (state.screen === 'correccio') animateLevelPoints();
+    if (state.screen === 'resultat') animateResult();
     tickCountdowns();
   }
 
@@ -680,7 +682,7 @@
       </header>
       ${body}
       <section class="points step" style="--d:${delayEnd.toFixed(1)}s" aria-live="polite">
-        <span class="pop${st.exact ? ' exact' : ''}">+${st.points}</span>
+        <span class="pop" id="pts-pop" data-to="${st.points}" data-max="${L.target}" data-delay="${delayEnd.toFixed(2)}" aria-label="${st.points} punts de ${L.target}">+0</span>
         <span class="muted">punts<br>${msg}</span>
       </section>
       <p class="bands step" style="--d:${delayEnd.toFixed(1)}s">${formula}</p>
@@ -696,16 +698,140 @@
     </section>`;
   }
 
+  /* ================= Paraules dels savis ================= */
+  const SAGE_WORDS = {
+    pitagores: { quote: 'Tot és nombre.', note: 'lema de l’escola pitagòrica',
+      cheer: 'Cada gran teorema va començar amb un primer pas. Demà, una mica més a prop.' },
+    hipatia: { quote: 'Defensa el teu dret a pensar: fins i tot pensar equivocadament és millor que no pensar.', note: 'atribuïda',
+      cheer: 'Ja tens el ritme. Afina la precisió i el blau d’Arquimedes és teu.' },
+    arquimedes: { quote: 'Doneu-me un punt de suport i mouré el món.', note: '',
+      cheer: 'Ja has fet mig camí. Cada unitat que retallis et porta més amunt.' },
+    noether: { quote: 'Els meus mètodes són maneres de treballar i de pensar; per això s’han escampat arreu.', note: '',
+      cheer: 'Estàs a tocar de l’or. Un parell d’exactes més i Gauss t’espera.' },
+    gauss: { quote: 'Les matemàtiques són la reina de les ciències.', note: '',
+      cheer: 'Has arribat al cim. Demà toca defensar la corona.' }
+  };
+
+  function sageWordsHTML(r, total) {
+    const w = SAGE_WORDS[r.key];
+    const next = SV.list[r.n];   // rang següent (si n'hi ha)
+    const gap = next ? `<span class="rr-gap">Et falten <b>${next.min - total}</b> punts per a <b style="color:${next.color}">${next.name}</b>.</span>` : '';
+    return `<figure class="rr-words" style="border-left-color:${r.color}">
+        <blockquote>«${w.quote}»</blockquote>
+        <figcaption>— ${r.name}${w.note ? `, <span>${w.note}</span>` : ''}</figcaption>
+        <p class="rr-cheer">${w.cheer} ${gap}</p>
+      </figure>`;
+  }
+
+  /* ================= Animacions de puntuació ================= */
+  const reduceMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  state.anim = 0;
+
+  // Color segons el percentatge del nivell: blanc, verd, blau, plata… i or només amb els punts sencers
+  function levelColor(p, T) {
+    if (T > 0 && p >= T) return SV.list[4];
+    const r = T > 0 ? p / T : 0;
+    return SV.list[r < 0.25 ? 0 : r < 0.5 ? 1 : r < 0.75 ? 2 : 3];
+  }
+
+  function tween(from, to, dur, step, done) {
+    if (reduceMotion || dur <= 0) { step(to); if (done) done(); return; }
+    const t0 = performance.now();
+    const frame = now => {
+      const k = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+      step(from + (to - from) * e);
+      if (k < 1) requestAnimationFrame(frame); else if (done) done();
+    };
+    requestAnimationFrame(frame);
+  }
+
+  // Correcció: els punts compten des de 0 i canvien de color
+  function animateLevelPoints() {
+    const el = document.getElementById('pts-pop');
+    if (!el) return;
+    const to = +el.dataset.to, T = +el.dataset.max, tok = ++state.anim;
+    const paint = v => {
+      const c = levelColor(v, T);
+      el.textContent = '+' + Math.round(v);
+      el.style.color = c.color;
+      el.style.textShadow = `0 0 18px rgba(${c.rgb},.55)`;
+    };
+    paint(0);
+    setTimeout(() => {
+      if (tok !== state.anim) return;
+      tween(0, to, Math.min(1700, 500 + to * 4), v => { if (tok === state.anim) paint(v); }, () => {
+        if (tok === state.anim && to >= T && to > 0) el.classList.add('burst');
+      });
+    }, reduceMotion ? 0 : +el.dataset.delay * 1000);
+  }
+
+  // Resultat: la recta s'omple nivell a nivell, el total compta i al final es revela el savi
+  function animateResult() {
+    const fill = document.getElementById('rl-fill');
+    if (!fill) return;
+    const d = day(), MAX = maxTotal(), tok = ++state.anim;
+    const num = document.getElementById('score3d'), box = num.parentNode, pctEl = document.getElementById('rl-pct');
+    const meds = [...view.querySelectorAll('.rl-medal')], rows = [...view.querySelectorAll('.bar-row')];
+    const pts = state.puzzle.levels.map((_, i) => (d.levels[i] ? d.levels[i].points : 0));
+    const paint = v => {
+      const frac = Math.min(1, v / MAX), c = SV.rankFor(Math.round(v));
+      // Tota la barra pren el color del rang que s'està assolint
+      fill.style.setProperty('--p', frac.toFixed(4));
+      fill.style.setProperty('--fc', c.color);
+      fill.style.setProperty('--frgb', c.rgb);
+      if (pctEl) { pctEl.textContent = Math.round(frac * 100) + ' %'; pctEl.classList.toggle('over', frac > 0.86); }
+      num.textContent = Math.round(v);
+      box.style.setProperty('--c', c.color);
+      box.style.setProperty('--rgb', c.rgb);
+      meds.forEach((m, k) => {
+        m.classList.toggle('lit', v > 0 && Math.round(v) >= SV.list[k].min);
+        m.classList.toggle('cur', SV.list[k].key === c.key && v > 0);
+      });
+    };
+    let cum = 0, i = 0;
+    paint(0);
+    const finish = () => {
+      if (tok !== state.anim) return;
+      box.classList.add('done');
+      fill.classList.add('complete');
+      const rr = view.querySelector('.rank-reveal');
+      if (rr) rr.classList.add('show');
+    };
+    const next = () => {
+      if (tok !== state.anim) return;
+      if (i >= pts.length) return finish();
+      const from = cum, to = cum + pts[i], row = rows[i];
+      if (row) {
+        row.classList.add('add');
+        const bar = row.querySelector('.bar i');
+        if (bar) bar.style.width = bar.dataset.w;
+      }
+      tween(from, to, pts[i] ? 750 : 250, v => { if (tok === state.anim) paint(v); }, () => {
+        cum = to; i++;
+        setTimeout(next, reduceMotion ? 0 : 180);
+      });
+    };
+    setTimeout(next, reduceMotion ? 0 : 500);
+  }
+
   /* ================= Pantalla: resultat ================= */
   function screenResultat() {
     const d = day();
     if (!d.finished) return screenAvui();
-    const total = totalOf(d), r = SV.rankFor(total);
+    const total = totalOf(d), r = SV.rankFor(total), MAX = maxTotal();
     const bars = state.puzzle.levels.map((_, i) => {
-      const st = d.levels[i], p = st ? st.points : 0, T = state.puzzle.levels[i].target;
-      return `<div class="bar-row"><span class="muted">N${i + 1}</span><span class="bar"><i style="width:${Math.round(p / T * 100)}%;background:${st && st.exact ? 'var(--gold)' : 'var(--chalk)'}"></i></span><b>${p}<small>/${T}</small></b></div>`;
+      const st = d.levels[i], p = st ? st.points : 0, T = state.puzzle.levels[i].target, c = levelColor(p, T);
+      return `<div class="bar-row"><span class="muted">N${i + 1}</span><span class="bar"><i style="width:0;background:${c.color};box-shadow:0 0 8px rgba(${c.rgb},.5)" data-w="${Math.round(p / T * 100)}%"></i></span><b>${p}<small>/${T}</small></b></div>`;
     }).join('');
-    const scale = SV.list.map(s => `<span style="background:${s.color};${s.key === r.key ? `box-shadow:0 0 10px rgba(${s.rgb},.9)` : 'opacity:.35'}" title="${s.name}: ${s.min}–${s.max}"></span>`).join('');
+    const rankLine = `<div class="rank-line" aria-hidden="true">
+        <div class="rl-medals">${SV.list.map((sv, k) => `<span class="rl-medal" style="left:${10 + 20 * k}%">${SV.medal(sv.key, 40)}</span>`).join('')}</div>
+        <div class="rl-track">
+          <div class="rl-fill" id="rl-fill"></div>
+          <div class="rl-zones">${SV.list.map(() => '<i></i>').join('')}</div>
+          <span class="rl-pct" id="rl-pct">0 %</span>
+        </div>
+        <div class="rl-ticks">${[0, 1, 2, 3, 4, 5].map(k => `<span style="left:${k * 20}%">${MAX * k / 5}</span>`).join('')}</div>
+      </div>`;
     const ex = exactOf(d), s = streak();
     const shown = state.celebrations.slice(0, 3), more = state.celebrations.length - shown.length;
     const cel = shown.length ? '<div class="celebrations">' + shown.map((c, k) =>
@@ -716,17 +842,23 @@
       <div class="res-grid">
         <div class="res-hero">
           <p class="kicker center">Repte nº ${state.puzzle.number} · completat</p>
-          <div class="res-medal">${SV.medal(r.key, 230)}</div>
-          <p class="kicker center" style="color:${r.color}">Rang ${r.n} · ${r.colorName}</p>
-          <h1 class="res-name">${r.name}</h1>
-          <p class="res-total"><b>${total}</b><span> / ${maxTotal()}</span></p>
+          <div class="score3d" style="--c:${SV.list[0].color};--rgb:${SV.list[0].rgb}" role="img" aria-label="Puntuació del dia: ${total} de ${MAX}">
+            <span class="s3d-num" id="score3d">0</span>
+            <span class="s3d-max">/ ${MAX}</span>
+            <span class="s3d-floor" aria-hidden="true"></span>
+          </div>
+          ${rankLine}
+          <div class="rank-reveal">
+            <div class="rr-medal">${SV.medal(r.key, 110)}</div>
+            <div><p class="kicker" style="color:${r.color}">Rang ${r.n} · ${r.colorName}</p><h1 class="res-name">${r.name}</h1></div>
+            ${sageWordsHTML(r, total)}
+          </div>
         </div>
         <div>
           ${cel}
           <section class="card bars" aria-label="Punts per nivell">${bars}
             <p class="muted small">${ex ? ex + (ex === 1 ? ' resultat exacte (en or).' : ' resultats exactes (en or).') : 'Cap resultat exacte avui.'} Ratxa: <b class="chalk">${s} ${s === 1 ? 'dia' : 'dies'}</b>.</p>
           </section>
-          <div class="scale" aria-label="Escala de rangs">${scale}</div>
           <div class="cta-row">
             <button type="button" class="btn btn-ghost" data-action="share">${ICON.share}Comparteix</button>
             <button type="button" class="btn btn-primary" data-go="ranquing">Rànquing →</button>
