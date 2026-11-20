@@ -192,6 +192,8 @@
     close: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
     back: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>',
     flame: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3c1 4 5 5.5 5 10a5 5 0 0 1-10 0c0-2.5 1.5-3.5 2.5-5 .5 1.5 1.5 2 2.5 2 0-2.5-.5-4.5 0-7z"/></svg>',
+    soundOn: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>',
+    soundOff: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M17 9.5l5 5M22 9.5l-5 5"/></svg>',
     shield: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/></svg>',
     share: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>',
     today: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 12h8M12 8v8"/></svg>',
@@ -258,6 +260,7 @@
     return `<header class="topbar">
       ${wordmark}
       <div class="topbar-right">
+        <button type="button" class="chip chip-sound${store.sound === false ? ' off' : ''}" data-action="sound" aria-label="${store.sound === false ? 'Activa el so' : 'Silencia el so'}" title="${store.sound === false ? 'So desactivat' : 'So activat'}">${store.sound === false ? ICON.soundOff : ICON.soundOn}</button>
         <button type="button" class="chip" data-go="vitrina" title="Ratxa de dies seguits${store.freezes ? ' i comodins' : ''}">${ICON.flame}${s} ${s === 1 ? 'dia' : 'dies'}${fr}</button>
         <button type="button" class="avatar" data-action="profile" aria-label="Perfil i sessió">${who}</button>
       </div>
@@ -739,6 +742,13 @@
     return SV.list[r < 0.25 ? 0 : r < 0.5 ? 1 : r < 0.75 ? 2 : 3];
   }
 
+  // Efectes de so (js/sound.js); respecten el botó de silenci de la capçalera
+  if (window.Sound) Sound.on = store.sound !== false;
+  function sfx(name, arg) {
+    if (!window.Sound || store.sound === false) return;
+    try { Sound[name](arg); } catch (e) { /* sense àudio */ }
+  }
+
   function tween(from, to, dur, step, done, linear) {
     if (reduceMotion || dur <= 0) { step(to); if (done) done(); return; }
     const t0 = performance.now();
@@ -762,10 +772,17 @@
       el.style.textShadow = `0 0 18px rgba(${c.rgb},.55)`;
     };
     paint(0);
+    let shown = 0;
     setTimeout(() => {
       if (tok !== state.anim) return;
-      tween(0, to, Math.min(1700, 500 + to * 4), v => { if (tok === state.anim) paint(v); }, () => {
-        if (tok === state.anim && to >= T && to > 0) el.classList.add('burst');
+      tween(0, to, Math.min(1700, 500 + to * 4), v => {
+        if (tok !== state.anim) return;
+        paint(v);
+        if (Math.round(v) !== shown) { shown = Math.round(v); sfx('tick', T ? v / T : 0); }
+      }, () => {
+        if (tok !== state.anim) return;
+        if (to >= T && to > 0) { el.classList.add('burst'); sfx('full'); }
+        else if (to > 0) sfx('settle');
       });
     }, reduceMotion ? 0 : +el.dataset.delay * 1000);
   }
@@ -804,8 +821,23 @@
       if (bars[k]) bars[k].style.width = (parseFloat(bars[k].dataset.w) * f).toFixed(2) + '%';
     });
     paint(0); fillRows(0);
+    let shown = 0, rankIdx = 0, rowsDone = 0;
+    const listen = v => {
+      const n = Math.round(v);
+      if (n === shown) return;
+      shown = n;
+      const ri = SV.list.indexOf(SV.rankFor(n));
+      if (ri > rankIdx) { rankIdx = ri; sfx('rank', ri); }
+      else sfx('tick', v / MAX);
+      // Cada ronda de 100 que s'acaba d'omplir, un petit destell
+      while (rowsDone < pts.length && v >= starts[rowsDone] + pts[rowsDone] - 0.5) {
+        if (pts[rowsDone] >= LEVEL_MAX) sfx('full');
+        rowsDone++;
+      }
+    };
     const finish = () => {
       if (tok !== state.anim) return;
+      sfx('done', SV.list.indexOf(SV.rankFor(total)));
       rows.forEach(row => row.classList.add('add'));
       box.classList.add('done');
       fill.classList.add('complete');
@@ -816,7 +848,7 @@
     const dur = Math.min(4200, 1600 + total * 2.6);
     setTimeout(() => {
       if (tok !== state.anim) return;
-      tween(0, total, dur, v => { if (tok === state.anim) { paint(v); fillRows(v); } }, finish, true);
+      tween(0, total, dur, v => { if (tok === state.anim) { paint(v); fillRows(v); listen(v); } }, finish, true);
     }, reduceMotion ? 0 : 500);
   }
 
@@ -1084,6 +1116,10 @@
       case 'replay': render(); break;
       case 'share': share(); break;
       case 'profile': profileModal(); break;
+      case 'sound':
+        store.sound = store.sound === false; save();
+        if (window.Sound) { Sound.on = store.sound; if (Sound.on) Sound.settle(); }
+        render(); break;
       case 'close-modal': closeModal(); break;
       case 'tut-exit': store.seenHelp = true; save(); go('avui'); break;
       case 'tut-again': openTutorial(); break;
