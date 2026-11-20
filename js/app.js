@@ -734,11 +734,11 @@
     return SV.list[r < 0.25 ? 0 : r < 0.5 ? 1 : r < 0.75 ? 2 : 3];
   }
 
-  function tween(from, to, dur, step, done) {
+  function tween(from, to, dur, step, done, linear) {
     if (reduceMotion || dur <= 0) { step(to); if (done) done(); return; }
     const t0 = performance.now();
     const frame = now => {
-      const k = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+      const k = Math.min(1, (now - t0) / dur), e = linear ? k : 1 - Math.pow(1 - k, 3);
       step(from + (to - from) * e);
       if (k < 1) requestAnimationFrame(frame); else if (done) done();
     };
@@ -788,30 +788,31 @@
         m.classList.toggle('cur', SV.list[k].key === c.key && v > 0);
       });
     };
-    let cum = 0, i = 0;
-    paint(0);
+    // Inici de cada nivell dins del total acumulat
+    const starts = [];
+    pts.reduce((acc, p, k) => { starts[k] = acc; return acc + p; }, 0);
+    const total = pts.reduce((a, b) => a + b, 0);
+    const bars = rows.map(row => row.querySelector('.bar i'));
+    const fillRows = v => rows.forEach((row, k) => {
+      const p = pts[k], f = p ? Math.max(0, Math.min(1, (v - starts[k]) / p)) : (v >= starts[k] ? 1 : 0);
+      row.classList.toggle('add', v > starts[k] || (p === 0 && v >= starts[k] && v > 0));
+      if (bars[k]) bars[k].style.width = (parseFloat(bars[k].dataset.w) * f).toFixed(2) + '%';
+    });
+    paint(0); fillRows(0);
     const finish = () => {
       if (tok !== state.anim) return;
+      rows.forEach(row => row.classList.add('add'));
       box.classList.add('done');
       fill.classList.add('complete');
       const rr = view.querySelector('.rank-reveal');
       if (rr) rr.classList.add('show');
     };
-    const next = () => {
+    // Un sol recorregut continu, a velocitat constant, de 0 al total
+    const dur = Math.min(4200, 1600 + total * 2.6);
+    setTimeout(() => {
       if (tok !== state.anim) return;
-      if (i >= pts.length) return finish();
-      const from = cum, to = cum + pts[i], row = rows[i];
-      if (row) {
-        row.classList.add('add');
-        const bar = row.querySelector('.bar i');
-        if (bar) bar.style.width = bar.dataset.w;
-      }
-      tween(from, to, pts[i] ? 750 : 250, v => { if (tok === state.anim) paint(v); }, () => {
-        cum = to; i++;
-        setTimeout(next, reduceMotion ? 0 : 180);
-      });
-    };
-    setTimeout(next, reduceMotion ? 0 : 500);
+      tween(0, total, dur, v => { if (tok === state.anim) { paint(v); fillRows(v); } }, finish, true);
+    }, reduceMotion ? 0 : 500);
   }
 
   /* ================= Pantalla: resultat ================= */
