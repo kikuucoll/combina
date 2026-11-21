@@ -77,6 +77,7 @@
   }
   function totalOf(d) { return (d.levels || []).reduce((s, l) => s + (l && l.done ? l.points : 0), 0); }
   function exactOf(d) { return (d.levels || []).filter(l => l && l.done && l.exact).length; }
+  function starsOf(d) { return (d.levels || []).filter(l => l && l.done && l.star).length; }
   function maxTotal() { return C.dailyTotal || 500; }
   const LEVEL_MAX = C.levelMax || 100;
   function doneCount(d) { return (d.levels || []).filter(l => l && l.done).length; }
@@ -115,6 +116,8 @@
   const ACH = [
     { id: 'first', g: '1', name: 'Primer pas', desc: 'Completa el teu primer repte.' },
     { id: 'exact', g: '=', name: 'Exacte!', desc: 'Encerta un objectiu exactament.' },
+    { id: 'star', g: '★', name: 'Estrella', desc: 'Encerta un objectiu fent servir totes les xifres.' },
+    { id: 'star5', g: '★⁵', name: 'Constel·lació', desc: 'Aconsegueix 5 estrelles en un mateix dia.' },
     { id: 'pow', g: 'xʸ', name: 'Potència', desc: 'Encerta un objectiu fent servir una potència.' },
     { id: 'root', g: '√', name: 'Arrel', desc: 'Encerta un objectiu fent servir una arrel.' },
     { id: 'fast', g: 'Δt', name: 'Llampec', desc: 'Encerta un objectiu en menys de 10 segons.' },
@@ -151,6 +154,8 @@
   function onLevelDone(i, st, L) {
     if (!st.exact) return;
     unlock('exact');
+    if (st.star) unlock('star');
+    if (starsOf(day()) >= 5) unlock('star5');
     if (st.tokens.some(t => t.t === '^')) unlock('pow');
     if (st.tokens.some(t => t.t === 'sqrt')) unlock('root');
     const used = (st.endAt - st.startAt) / 1000;
@@ -252,6 +257,7 @@
     trophy: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 20h8"/></svg>',
     sages: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 6l5.2 9H6.8z"/></svg>',
     phone: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M12 8v6M9 11l3 3 3-3"/></svg>',
+    about: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c1.2-3.6 3.8-5.5 7-5.5s5.8 1.9 7 5.5"/></svg>',
     help: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01"/></svg>',
     google: '<svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.730-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>'
   };
@@ -290,7 +296,7 @@
     navEl.innerHTML = `<div class="nav-brand">${wordmark}</div>` +
       item('avui', 'Avui', ICON.today) + item('ranquing', 'Rànquing', ICON.rank) +
       item('vitrina', 'Vitrina', ICON.trophy) + item('savis', 'Savis', ICON.sages) +
-      item('tutorial', 'Tutorial', ICON.help);
+      item('sobre', 'Contacte', ICON.about) + item('tutorial', 'Tutorial', ICON.help);
   }
 
   function render() {
@@ -300,6 +306,7 @@
     view.setAttribute('data-screen', state.screen);
     if (state.screen === 'joc') afterJocRender();
     if (state.screen === 'tutorial') updateGame();
+    fitScreen();
     if (state.screen === 'ranquing') loadRanking();
     if (state.screen === 'correccio') animateLevelPoints();
     if (state.screen === 'resultat') animateResult();
@@ -307,12 +314,12 @@
   }
 
   function header() {
-    const u = state.user, s = streak(), av = u && parseAv(u.avatar);
+    const u = B.user, s = streak(), av = u && parseAv(u.avatar);
     const who = av ? `<span class="av-glyph" style="color:${av.c.color}">${av.g}</span>`
       : u ? (u.photo ? `<img src="${esc(u.photo)}" alt="" referrerpolicy="no-referrer">` : esc(initials(u.name))) : 'Tu';
     const fr = store.freezes ? `<span class="chip-sep"></span>${ICON.shield}${store.freezes}` : '';
     // Convidat: accés discret per guardar el progrés amb Google
-    const saveBtn = B.enabled && !u ? `<button type="button" class="chip chip-save" data-action="signin" title="Inicia sessió amb Google per guardar el progrés">${ICON.google}<span>Guarda el progrés</span></button>` : '';
+    const saveBtn = B.enabled && !state.user ? `<button type="button" class="chip chip-save" data-action="signin" title="Inicia sessió amb Google per guardar el progrés">${ICON.google}<span>Guarda el progrés</span></button>` : '';
     return `<header class="topbar">
       ${wordmark}
       <div class="topbar-right">
@@ -325,21 +332,29 @@
   }
 
   /* ================= Peces del tauler de joc ================= */
+  // Potències i arrels només als nivells avançats del repte diari (i sempre al mode aula)
+  function advancedKeys() {
+    if (state.screen === 'tutorial') return false;
+    if (state.practice) return true;
+    return state.level >= (C.advancedFrom == null ? 3 : C.advancedFrom);
+  }
+
   function boardHTML(L) {
     const tiles = L.nums.map((n, k) => `<button type="button" class="tile" data-tile="${k}">${n}</button>`).join('');
     const key = (k, label, aria, cls) => `<button type="button" class="key ${cls || ''}" data-key="${k}" aria-label="${aria}">${label}</button>`;
+    const adv = advancedKeys();
     return {
       expr: `<div class="expr-card" aria-live="polite">
           <p class="expr" id="expr"></p>
           <div class="expr-live"><span id="live-val">&nbsp;</span><span class="pill" id="live-pts"></span></div>
         </div>`,
       tiles: `<div class="tiles" style="--n:${L.count};--cols:${L.count <= 6 ? L.count : 4}">${tiles}</div>`,
-      keypad: `<div class="keypad">
+      keypad: `<div class="keypad${adv ? '' : ' basic'}">
           ${key('+', '+', 'més')}${key('-', '−', 'menys')}${key('*', '×', 'per')}${key('/', '÷', 'dividit per')}
-          ${key('(', '(', 'obre parèntesi')}${key(')', ')', 'tanca parèntesi')}${key('^', '<i>x</i><sup>y</sup>', 'potència: la xifra següent serà l’exponent')}${key('sqrt', '√', 'arrel quadrada')}
+          ${key('(', '(', 'obre parèntesi')}${key(')', ')', 'tanca parèntesi')}${adv ? key('^', '<i>x</i><sup>y</sup>', 'potència: la xifra següent serà l’exponent') + key('sqrt', '√', 'arrel quadrada') : ''}
           ${key('back', '⌫', 'esborra', 'soft')}${key('clear', 'Neteja', 'neteja l’expressió', 'soft small')}
           <button type="button" class="key submit" data-key="submit" id="submit">Valida <b>=</b></button>
-          <p class="kbd-hint">Teclat: xifres · + − * / · ( ) · ^ o P potència · R arrel · ⌫ · Retorn valida</p>
+          <p class="kbd-hint">Teclat: xifres · + − * / · ( )${adv ? ' · ^ o P potència · R arrel' : ''} · ⌫ · Retorn valida</p>
         </div>`
     };
   }
@@ -357,7 +372,7 @@
       <div class="brand-hero">${wordmark}<p class="kicker">El repte diari de càlcul</p></div>
       <div class="hero-demo" aria-hidden="true">
         <div class="mini-tiles">${tiles}</div>
-        <div class="ops-line"><span></span>( ) × ÷ + − √ xʸ<span></span></div>
+        <div class="ops-line"><span></span>( ) × ÷ + −<span></span></div>
         <p class="kicker gold">Nivell 1 · objectiu</p>
         <p class="hero-target"><b>≈</b>247</p>
       </div>
@@ -406,7 +421,7 @@
   function activeChallenge() {
     const ch = store.challenge;
     if (!ch || ch.day < P.addDays(state.dayKey, -1)) return null;          // només d'avui o d'ahir
-    if (state.user && ch.uid === state.user.uid) return null;               // el teu propi enllaç
+    if (B.user && ch.uid === B.user.uid) return null;               // el teu propi enllaç
     return ch;
   }
 
@@ -431,12 +446,12 @@
       : diff === 0 ? `Empat amb <b class="chalk">${name}</b>: ${total} a ${ch.total}.`
       : `<b class="chalk">${name}</b> t'ha guanyat per <b class="gold">${-diff}</b> punts. Demà, la revenja!`;
     return `<div class="card challenge">${ringHTML(ch.name || '?', ch.avatar, 'lg')}<p>${msg}<small>Tu ${total} · ${name} ${ch.total}</small></p>
-      <button type="button" class="btn btn-ghost btn-sm" data-action="challenge">${ICON.share}Repta-li</button></div>`;
+      <button type="button" class="btn btn-ghost btn-sm" data-action="challenge">${ICON.share}Comparteix</button></div>`;
   }
 
   function challengeURL() {
     const d = day(), p = new URLSearchParams({ r: state.dayKey });
-    if (state.user) p.set('de', state.user.uid);
+    if (B.user) p.set('de', B.user.uid);
     else if (d.finished) p.set('p', String(totalOf(d)));
     return location.origin + location.pathname + '?' + p.toString();
   }
@@ -455,6 +470,40 @@
     shareOut(text, challengeURL(), 'Enllaç de repte copiat. Envia’l a qui vulguis!');
   }
 
+  /* ================= Convidats: el nom al rànquing sense compte ================= */
+  function nameCard(total) {
+    if (!B.enabled || B.user) return '';
+    return `<form class="card name-card" id="name-card" onsubmit="return false">
+      <p class="kicker gold">Surt al rànquing d'avui</p>
+      <p class="small">Escriu el teu nom i els teus <b class="chalk">${total} punts</b> apareixeran a la llista de jugadors.</p>
+      <div class="name-row">
+        <input class="guest-name" type="text" maxlength="20" autocomplete="nickname" spellcheck="false" placeholder="El teu nom" aria-label="El teu nom">
+        <button type="button" class="btn btn-primary btn-sm" data-action="guest-join">Desa</button>
+      </div>
+      <button type="button" class="btn-text inline" data-action="signin">${ICON.google}<span>o entra amb Google per guardar també la ratxa</span></button>
+    </form>`;
+  }
+
+  function guestJoin(btn) {
+    const box = btn && (btn.closest('.name-row') || btn.closest('form'));
+    const inp = (box && box.querySelector('.guest-name')) || document.querySelector('.guest-name');
+    const name = (inp ? inp.value : '').replace(/\s+/g, ' ').trim();
+    if (!/^[\p{L}\p{N} .'’_-]{2,20}$/u.test(name)) return toast('El nom ha de tenir de 2 a 20 lletres o xifres.');
+    if (btn) btn.disabled = true;
+    // Avatar aleatori (símbol i color), que després es pot canviar al perfil
+    const av = Math.floor(Math.random() * AV_GLYPHS.length) + '.' + Math.floor(Math.random() * SV.list.length);
+    B.guestJoin(name, av).then(() => {
+      track('convidat_amb_nom', 'Convidat amb nom');
+      submitDay();
+      closeModal();
+      toast('Fet! Ja surts al rànquing com a ' + name + '.');
+      render();
+    }).catch(e => {
+      if (btn) btn.disabled = false;
+      toast(e && e.code === 'auth/operation-not-allowed' ? 'El rànquing de convidats encara no està activat.' : 'No s’ha pogut desar: ' + ((e && e.message) || e));
+    });
+  }
+
   /* ================= Iniciar la sessió en el moment de recompensa ================= */
   function signinModal(kicker, total) {
     openModal(`${kicker ? `<p class="kicker gold">${esc(kicker)}</p>` : ''}
@@ -469,10 +518,27 @@
     state.reward = null;
     // Un cop al dia, en acabar el repte (el moment de màxima recompensa)
     if (!r || !B.enabled || state.user || store.askedDay === state.dayKey) return;
+    if (state.anon) return;              // ja surt al rànquing amb el seu nom: no l'atabalem cada dia
     store.askedDay = state.dayKey; save();
     const kicker = r.record ? 'Rècord personal' : r.first ? 'Primer repte completat'
       : state.celebrations.length ? state.celebrations[0].title : 'Repte nº ' + state.puzzle.number + ' completat';
-    setTimeout(() => { if (state.screen === 'resultat' && modalEl.hidden && !state.user) signinModal(kicker, r.total); }, reduceMotion ? 300 : 1400);
+    // Just després de veure la puntuació: missatge a sobre amb el nom o Google
+    setTimeout(() => { if (state.screen === 'resultat' && modalEl.hidden && !B.user) nameModal(kicker, r.total); }, reduceMotion ? 300 : 900);
+  }
+
+  function nameModal(kicker, total) {
+    openModal(`${kicker ? `<p class="kicker gold">${esc(kicker)}</p>` : ''}
+      <h2 class="title sm">Has fet ${total} punts!</h2>
+      <p class="lead">Escriu el teu nom i sortiràs al rànquing d'avui.</p>
+      <form class="name-row" onsubmit="return false">
+        <input class="guest-name" type="text" maxlength="20" autocomplete="nickname" spellcheck="false" placeholder="El teu nom" aria-label="El teu nom">
+        <button type="button" class="btn btn-primary btn-sm" data-action="guest-join">Desa</button>
+      </form>
+      <div class="or-line"><span>o bé</span></div>
+      <button type="button" class="btn btn-ghost" data-action="signin">${ICON.google}Entra amb Google i desa la teva ratxa</button>
+      <button type="button" class="btn-text" data-action="close-modal">Ara no</button>`);
+    const inp = modalEl.querySelector('.guest-name');
+    if (inp) inp.focus();
   }
 
   // Targeta fixa per als convidats (resultat i rànquing)
@@ -490,10 +556,11 @@
     return `<section class="screen tutorial">
       <header class="game-head">
         <button type="button" class="icon-btn" data-action="tut-exit" aria-label="Surt del tutorial">${ICON.back}</button>
-        <div class="game-progress"><p class="kicker">Tutorial · sense rellotge</p></div>
+        <div class="game-progress"><p class="kicker">${store.seenHelp ? 'Tutorial' : 'Escalfament'} · sense rellotge</p></div>
       </header>
       <div class="tut-intro">
-        <h1 class="title sm">Arriba al <span class="gold">10</span></h1>
+        ${store.seenHelp ? '' : `<p class="tut-brand">${wordmark}<span class="kicker">El repte diari de càlcul · 5 nivells, 2 minuts</span></p>${challengeCard()}`}
+        <h1 class="title sm">Prova-ho: arriba al <span class="gold">10</span></h1>
         <p class="lead">Combina les xifres 2, 3 i 4 amb operacions. Cada xifra, un sol cop.</p>
       </div>
       ${done ? tutorialDone() : `
@@ -525,8 +592,8 @@
       <ul class="tut-rules">
         <li><b>Cada dia a les 9:00</b>, un repte nou amb <b>5 nivells</b> (de 4 a 8 xifres de l'1 al 20).</li>
         <li>Tens de <b>30 a 50 segons</b> per nivell. Si s'acaba el temps, es corregeix el que hi hagi.</li>
-        <li>Pots fer servir <b>+ − × ÷</b>, <b>parèntesis</b>, <b>potències</b> (l'exponent és una xifra) i <b>arrels</b>.</li>
-        <li><b>Cada ronda val fins a 100 punts</b> (500 al dia). Si encertes l'objectiu fent servir <b>totes les xifres</b>, en fas 100; amb menys xifres, el màxim baixa fins a 70. <b>Cada unitat de distància resta un 10 %</b>: a 1, el 90 %; a 5, la meitat; a 10 o més, 0.</li>
+        <li>Pots fer servir <b>+ − × ÷</b> i <b>parèntesis</b>. Als nivells 4 i 5 també <b>potències</b> (l'exponent és una xifra) i <b>arrels</b>.</li>
+        <li><b>Arribar a l'objectiu exacte val 100 punts</b> (500 al dia). Si a més fas servir <b>totes les xifres</b>, guanyes una <b class="gold">estrella ★</b>. Si no hi arribes, <b>cada unitat de distància resta un 10 %</b>: a 1, 90 punts; a 5, 50; a 10 o més, 0.</li>
         <li>Amb el total del dia, aconsegueixes la medalla d'un dels <b>cinc savis</b>. Juga cada dia per allargar la <b>ratxa</b> i guanyar <b>segells</b>.</li>
       </ul>
     </details>`;
@@ -581,7 +648,7 @@
       const st = d.levels[i];
       const dots = Array.from({ length: L.count }, () => '<i></i>').join('');
       let right = `<span class="muted">${secsFor(i)} s</span>`;
-      if (st && st.done) right = `<b class="${st.exact ? 'gold' : ''}">${st.points}</b>`;
+      if (st && st.done) right = `<b class="${st.exact ? 'gold' : ''}">${st.points}${st.star ? ' ★' : ''}</b>`;
       else if (st && st.startAt) right = '<span class="gold">en curs</span>';
       return `<li class="lvl-row${i === next ? ' next' : ''}"><span>Nivell ${i + 1}</span><span class="dots" aria-label="${L.count} xifres">${dots}</span><span class="lvl-right">${right}</span></li>`;
     }).join('');
@@ -611,11 +678,12 @@
           <p class="kicker">${esc(P.prettyDay(state.dayKey))} · Repte nº ${pz.number}</p>
           <h1 class="title">Cada segon compta.<br><em class="muted-em">Infinites combinacions.</em></h1>
           ${d.finished ? '' : challengeCard()}
-          <ol class="card lvl-list" aria-label="Nivells d'avui">${rows}</ol>
           ${cta}
+          <ol class="card lvl-list" aria-label="Nivells d'avui">${rows}</ol>
           <p class="countdown-line">Nou repte en <span class="countdown gold" data-countdown></span></p>
           <button type="button" class="btn-text aula-link" data-go="aula">Mode aula · sense temps</button>
           ${rulesHTML()}
+          ${aboutLink()}
         </div>
         <div class="side-col">
           <section class="card yesterday" aria-label="Ahir i la teva setmana">${yesterday}</section>
@@ -700,12 +768,29 @@
         <div class="game-main">
           <div class="target"><p class="kicker">Objectiu</p><p class="target-num">${L.target}</p></div>
           ${b.expr}${b.tiles}
-          <p class="hint">Cada xifra, un sol cop. Fer-les servir totes dona més punts; cada unitat de distància resta un 10 %.</p>
+          <p class="hint">Cada xifra, un sol cop. Exacte = 100 punts · amb totes les xifres, ★ de bonus.</p>
         </div>
         ${b.keypad}
       </div>
     </section>`;
   }
+
+  // Encongeix el tauler (xifres, tecles, objectiu) fins que tot hi cap a l'alçada visible
+  function fitScreen() {
+    const sc = view.querySelector('.screen');
+    if (!sc) return;
+    view.style.removeProperty('--k');
+    if (!sc.querySelector('.game') || (window.matchMedia && matchMedia('(min-width: 960px)').matches)) return;
+    const H = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+    if (!(H > 300)) return;                          // pestanya oculta o sense mida: no hi toquem
+    let k = 1;
+    for (let n = 0; n < 10 && document.documentElement.scrollHeight > H + 8; n++) {   // +8: l’animació d’entrada desplaça 6 px
+      k = Math.round((k - 0.04) * 100) / 100;
+      view.style.setProperty('--k', k);
+    }
+  }
+  let fitT = null;
+  window.addEventListener('resize', () => { clearTimeout(fitT); fitT = setTimeout(fitScreen, 120); });
 
   function afterJocRender() {
     const st = day().levels[state.level];
@@ -741,8 +826,11 @@
     const lv = document.getElementById('live-val'), lp = document.getElementById('live-pts'), sb = document.getElementById('submit');
     if (r.ok) {
       const d = E.distance(L.target, r.v), pts = E.points(L.target, r.v, E.tilesUsed(st.tokens), L.count);
+      const all = E.tilesUsed(st.tokens) === L.count;
       lv.textContent = '= ' + E.fmt(r.v);
-      lp.textContent = (d === 0 ? 'Exacte! · ' + pts + ' punts' : 'a ' + E.fmt(d) + ' · ara ' + pts + ' punts') +
+      // ≈: mentre t'acostes, veus els punts que ja tens assegurats si valides ara
+      lp.textContent = (d === 0 ? (all ? 'Exacte! 100 punts ★' : 'Exacte! 100 punts · ★ amb totes')
+        : pts > 0 ? 'a ' + E.fmt(d) + ' · ja tens ' + pts + ' punts' : 'a ' + E.fmt(d) + ' · 0 punts') +
         (open > 0 ? ` · falta${open > 1 ? 'n' : ''} ${open} )` : '');
       lp.className = 'pill' + (d === 0 ? ' exact' : '') + (open > 0 ? ' warn' : '');
       sb.disabled = false;
@@ -805,7 +893,8 @@
     render();
   }
 
-  function finishLevel(timeout) {
+  // away = el temps s'ha esgotat mentre l'app estava tancada: no s'arrenca el nivell següent sol
+  function finishLevel(timeout, away) {
     const i = state.level, L = state.puzzle.levels[i], d = day(), st = d.levels[i];
     if (!st || st.done) return;
     stopTicker();
@@ -817,18 +906,60 @@
       st.value = r.v; st.used = E.tilesUsed(st.tokens);
       st.points = E.points(L.target, r.v, st.used, L.count);
       st.exact = E.distance(L.target, r.v) === 0;
+      st.star = st.exact && st.used === L.count;
     }
     else { st.value = null; st.points = 0; st.err = r.empty ? 'No hi havia cap expressió' : r.err; }
     d.total = totalOf(d);
     state.celebrations = [];
-    // Mode aula: no hi ha segells, ratxa ni rànquing
+    // Mode aula: correcció pas a pas (aquí sí, per aprendre amb calma)
     if (state.practice) return go('correccio');
     track('nivell_' + (i + 1) + '_acabat', 'Nivell ' + (i + 1) + ' acabat');
     onLevelDone(i, st, L);
-    if (doneCount(d) === state.puzzle.levels.length) { d.finished = true; onDayFinished(); submitDay(); track('repte-acabat', 'Repte acabat'); }
+    const last = doneCount(d) === state.puzzle.levels.length;
+    if (last) { d.finished = true; onDayFinished(); submitDay(); track('repte-acabat', 'Repte acabat'); }
     save();
-    go('correccio');
+    if (away) return go(last ? 'resultat' : 'avui');
+    levelFlash(i, st, last);
   }
+
+  /* Repte diari: entre nivells només se sumen els punts (≈1,5 s) i es passa al següent.
+   * La correcció pas a pas queda per al final, a «Com ho has resolt». */
+  function levelFlash(i, st, last) {
+    const tok = ++state.flash;
+    const d = day(), total = totalOf(d), prev = total - st.points;
+    const c = levelColor(st.points, LEVEL_MAX);
+    const msg = st.star ? 'Exacte i amb totes les xifres ★' : st.exact ? 'Exacte!'
+      : st.points >= 80 ? 'Molt a prop' : st.points > 0 ? (st.timeout ? 'Temps esgotat · cada intent suma' : 'Cada intent suma')
+      : st.timeout ? 'Temps esgotat' : 'Aquesta no t’ha sortit';
+    const nextL = !last && state.puzzle.levels[i + 1];
+    view.querySelectorAll('.tile, .key').forEach(b => { b.disabled = true; });
+    const el = document.createElement('div');
+    el.className = 'lvl-flash' + (st.exact ? ' exact' : '');
+    el.setAttribute('role', 'status');
+    el.innerHTML = `<div class="lf-card">
+        <p class="kicker">Nivell ${i + 1} de 5</p>
+        <p class="lf-pts" id="lf-pts" style="color:${c.color};text-shadow:0 0 22px rgba(${c.rgb},.55)">+0</p>
+        <p class="lf-msg">${esc(msg)}</p>
+        <p class="lf-total">Total <b id="lf-total">${prev}</b><small> / ${maxTotal()}</small></p>
+        <p class="lf-next">${last ? 'Repte completat!' : `Nivell ${i + 2} · ${nextL.count} xifres · ${secsFor(i + 1)} s`}</p>
+        ${last ? '' : '<button type="button" class="btn-text lf-pause" data-action="pause">Fes una pausa</button>'}
+      </div>`;
+    view.appendChild(el);
+    const pe = el.querySelector('#lf-pts'), te = el.querySelector('#lf-total');
+    let shown = 0;
+    tween(0, st.points, reduceMotion ? 0 : 650, v => {
+      pe.textContent = '+' + Math.round(v);
+      te.textContent = Math.round(prev + v);
+      if (Math.round(v) !== shown) { shown = Math.round(v); sfx('tick', v / LEVEL_MAX); }
+    }, () => {
+      if (st.points >= LEVEL_MAX) { pe.classList.add('burst'); sfx('full'); } else if (st.points > 0) sfx('settle');
+    });
+    setTimeout(() => {
+      if (tok !== state.flash || state.screen !== 'joc' || !el.isConnected) return;
+      if (last) go('resultat'); else beginLevel(i + 1);
+    }, reduceMotion ? 1200 : (last ? 1500 : 1700));
+  }
+  state.flash = 0;
 
   function press(k) {
     const c = ctx(), st = c.st;
@@ -839,8 +970,8 @@
       case '+': case '-': case '*': case '/': ok = a.op; if (ok) st.tokens.push({ t: 'op', v: k }); break;
       case '(': ok = a.open; if (ok) st.tokens.push({ t: '(' }); break;
       case ')': ok = a.close; if (ok) st.tokens.push({ t: ')' }); break;
-      case '^': ok = a.pow; if (ok) st.tokens.push({ t: '^' }); break;
-      case 'sqrt': ok = a.sqrt; if (ok) st.tokens.push({ t: 'sqrt' }); break;
+      case '^': ok = a.pow && advancedKeys(); if (ok) st.tokens.push({ t: '^' }); break;
+      case 'sqrt': ok = a.sqrt && advancedKeys(); if (ok) st.tokens.push({ t: 'sqrt' }); break;
       case 'back': st.tokens.pop(); break;
       case 'clear': st.tokens = []; break;
       case 'submit':
@@ -1093,7 +1224,7 @@
     const total = totalOf(d), r = SV.rankFor(total), MAX = maxTotal();
     const bars = state.puzzle.levels.map((_, i) => {
       const st = d.levels[i], p = st ? st.points : 0, T = LEVEL_MAX, c = levelColor(p, T);
-      return `<div class="bar-row"><span class="muted">N${i + 1}</span><span class="bar"><i style="width:0;background:${c.color};box-shadow:0 0 8px rgba(${c.rgb},.5)" data-w="${Math.round(p / T * 100)}%"></i></span><b>${p}<small>/${T}</small></b></div>`;
+      return `<div class="bar-row"><span class="muted">N${i + 1}</span><span class="bar"><i style="width:0;background:${c.color};box-shadow:0 0 8px rgba(${c.rgb},.5)" data-w="${Math.round(p / T * 100)}%"></i></span><b>${p}<small>/${T}</small><em class="star${st && st.star ? ' on' : ''}" aria-hidden="true">★</em></b></div>`;
     }).join('');
     const rankLine = `<div class="rank-line" aria-hidden="true">
         <div class="rl-medals">${SV.list.map((sv, k) => `<span class="rl-medal" style="left:${10 + 20 * k}%">${SV.medal(sv.key, 40)}</span>`).join('')}</div>
@@ -1123,18 +1254,23 @@
           <div class="rank-reveal">
             <div class="rr-medal">${SV.medal(r.key, 110)}</div>
             <div><p class="kicker" style="color:${r.color}">Rang ${r.n} · ${r.colorName}</p><h1 class="res-name">${r.name}</h1></div>
-            ${sageWordsHTML(r, total)}
           </div>
+          <div class="res-actions">
+            <button type="button" class="btn btn-gold" data-action="share">${ICON.share}Comparteix el resultat</button>
+            <button type="button" class="btn-text" data-go="desglos">Com ho has resolt? <span aria-hidden="true">→</span></button>
+          </div>
+          ${nameCard(total)}
+          ${sageWordsHTML(r, total)}
         </div>
         <div>
           ${challengeResult(total)}
           ${cel}
           <section class="card bars" aria-label="Punts per nivell">${bars}
-            <p class="muted small">${ex ? ex + (ex === 1 ? ' resultat exacte (en or).' : ' resultats exactes (en or).') : 'Cap resultat exacte avui.'} Ratxa: <b class="chalk">${s} ${s === 1 ? 'dia' : 'dies'}</b>.</p>
+            <p class="muted small">${ex ? ex + (ex === 1 ? ' resultat exacte (en or)' : ' resultats exactes (en or)') : 'Cap resultat exacte avui'}${starsOf(d) ? ` · <b class="gold">${starsOf(d)} ★</b> amb totes les xifres` : ''}. Ratxa: <b class="chalk">${s} ${s === 1 ? 'dia' : 'dies'}</b>.</p>
           </section>
-          ${saveCard('<b class="chalk">Guarda aquesta partida.</b> Inicia sessió per no perdre la ratxa i els segells, i per aparèixer al rànquing.')}
+          ${state.anon ? saveCard('<b class="chalk">Jugues com a ' + esc(state.anon.name) + '.</b> Inicia sessió amb Google per no perdre la ratxa i els segells si canvies de mòbil.') : ''}
           <div class="cta-row">
-            <button type="button" class="btn btn-ghost" data-action="share">${ICON.share}Repta un amic</button>
+            <button type="button" class="btn btn-ghost" data-go="desglos">Com ho has resolt</button>
             <button type="button" class="btn btn-primary" data-go="ranquing">Rànquing →</button>
           </div>
           <div class="next-card">
@@ -1142,22 +1278,129 @@
             <p class="muted small center">Cada dia a les 9:00 h, cinc nivells nous. No perdis la ratxa!</p>
             ${installBtn()}
           </div>
+          ${aboutLink()}
         </div>
       </div>
     </section>`;
   }
 
-  function share() {
-    const d = day(), total = totalOf(d), r = SV.rankFor(total);
-    // 🟡 perfecte (100) · 🟢 70 o més · 🟠 30–69 · 🔴 menys de 30
+  // Targeta d'emojis estil Wordle: es copia al porta-retalls i, al mòbil, s'obre el menú de compartir
+  function shareText() {
+    const d = day(), total = totalOf(d), r = SV.rankFor(total), stars = starsOf(d);
+    // 🟡 exacte · 🟢 75 o més · 🟠 40–74 · 🔴 menys de 40
     const marks = state.puzzle.levels.map((L, i) => {
       const p = d.levels[i] ? d.levels[i].points : 0;
-      return p >= LEVEL_MAX ? '🟡' : p >= LEVEL_MAX * 0.7 ? '🟢' : p >= LEVEL_MAX * 0.3 ? '🟠' : '🔴';
+      return p >= LEVEL_MAX ? '🟡' : p >= 75 ? '🟢' : p >= 40 ? '🟠' : '🔴';
     }).join('');
     const s = streak();
-    const text = `combina ≈ · repte nº ${state.puzzle.number}\n${marks}\n${total}/${maxTotal()} punts · rang ${r.name}${s > 1 ? ` · ratxa ${s} dies 🔥` : ''}\nEm pots superar?`;
+    return `combina ≈ nº ${state.puzzle.number}\n${marks}${stars ? ' ' + '⭐'.repeat(stars) : ''}\n${total}/${maxTotal()} · ${r.name}${s > 1 ? ` · 🔥${s}` : ''}`;
+  }
+
+  function share() {
+    const full = shareText() + '\n' + challengeURL();
     track('resultat_compartit', 'Resultat compartit');
-    shareOut(text, challengeURL(), 'Resultat i enllaç de repte copiats. Enganxa’ls on vulguis!');
+    let copied = false;
+    try {
+      if (navigator.clipboard) navigator.clipboard.writeText(full).then(() => { copied = true; }, () => {});
+    } catch (e) { /* sense porta-retalls */ }
+    if (navigator.share) {
+      navigator.share({ text: full }).catch(() => { if (copied) toast('Resultat copiat. Enganxa’l al grup!'); });
+    } else {
+      setTimeout(() => toast(copied ? 'Resultat copiat. Enganxa’l al WhatsApp o on vulguis!' : full), 200);
+    }
+  }
+
+  /* ================= Pantalla: com ho has resolt (desglòs del dia) ================= */
+  function screenDesglos() {
+    const d = day();
+    if (!d.finished) return screenAvui();
+    const items = state.puzzle.levels.map((L, i) => {
+      const st = d.levels[i] || {}, r = E.value(st.tokens || []);
+      const c = levelColor(st.points || 0, LEVEL_MAX);
+      let body;
+      if (r.ok) {
+        const steps = E.steps(r.ast);
+        body = '<ol class="steps-mini">' + steps.map((sp, k) =>
+          `<li><span class="step-expr${k === steps.length - 1 && k > 0 ? ' final' : ''}">${sp.html}</span><span class="chip-label">${esc(sp.label)}</span></li>`).join('') + '</ol>';
+        const dist = E.distance(L.target, r.v);
+        body += `<p class="muted small">${dist === 0 ? 'Exacte!' : `|${L.target} − ${E.fmt(r.v)}| = ${E.fmt(dist)} · precisió ${E.fmt(E.percent(L.target, r.v))} %`} · ${st.used || 0}/${L.count} xifres${st.star ? ' ★' : ''}</p>`;
+      } else {
+        body = `<p class="step-expr">${st.tokens && st.tokens.length ? E.toHTML(st.tokens) : '—'}</p><p class="muted small">${esc(st.err || 'Sense resultat vàlid')}</p>`;
+      }
+      return `<details class="card dg-item"${i === 0 ? ' open' : ''}>
+        <summary><span class="dg-n">N${i + 1}</span><span class="dg-t">Objectiu <b>${L.target}</b></span>
+          <span class="dg-p" style="color:${c.color}">${st.points || 0}${st.star ? ' ★' : ''}</span></summary>
+        <div class="dg-body">${body}
+          <p class="dg-sol"><span class="kicker">Una solució exacta</span><span>${E.solutionHTML(L.solution)} = ${L.target}</span></p>
+        </div>
+      </details>`;
+    }).join('');
+    return `<section class="screen desglos">
+      <header class="game-head">
+        <button type="button" class="icon-btn" data-go="resultat" aria-label="Torna al resultat">${ICON.back}</button>
+        <div class="game-progress"><p class="kicker">Repte nº ${state.puzzle.number} · ${totalOf(d)} / ${maxTotal()}</p><h1 class="title sm">Com ho has resolt</h1></div>
+      </header>
+      ${items}
+      <button type="button" class="btn btn-gold" data-action="share">${ICON.share}Comparteix el resultat</button>
+    </section>`;
+  }
+
+  /* ================= Pantalla: sobre mi i contacte ================= */
+  function aboutLink() {
+    return `<button type="button" class="btn-text about-link" data-go="sobre">Contacte · Envia'm una idea</button>`;
+  }
+
+  function screenSobre() {
+    const on = !!C.contactEmail;
+    return `<section class="screen sobre">
+      ${header()}
+      <h1 class="title">Contacte</h1>
+      <div class="card about-card">
+        <p class="about-hi">Hola! Em dic <b class="gold">Kiku</b> i sóc mestre de primària.</p>
+        <p><b class="chalk">COMBINA ≈</b> va néixer a l'aula: volia que practicar la jerarquia d'operacions i el càlcul fos un joc d'escalfament diari i no una fitxa més. Ara hi podeu jugar alumnes, famílies, docents i altres curiosos.</p>
+        <p class="muted">És gratuït, sense anuncis i sense galetes de seguiment. El faig a estones, i cada comentari m'ajuda a millorar-lo. <b class="chalk">T'hi animes?</b></p>
+      </div>
+      <section class="card contact-card" aria-label="Formulari de contacte">
+        <p class="kicker gold">Escriu-me</p>
+        <p class="small muted">Una idea, un error, una proposta per fer-lo servir a classe… Ho llegeixo tot.</p>
+        ${on ? `<form id="contact" class="contact-form" novalidate onsubmit="return false">
+          <label class="field"><span class="kicker">De què es tracta?</span>
+            <select name="tipus"><option>Idea de millora</option><option>He trobat un error</option><option>L'utilitzo a l'aula</option><option>Altres</option></select></label>
+          <label class="field"><span class="kicker">Missatge</span>
+            <textarea name="missatge" rows="5" maxlength="3000" required placeholder="Escriu aquí…"></textarea></label>
+          <label class="field"><span class="kicker">Nom (opcional)</span>
+            <input name="nom" type="text" maxlength="60" autocomplete="name"></label>
+          <label class="field"><span class="kicker">Correu (opcional, si vols resposta)</span>
+            <input name="correu" type="email" maxlength="120" autocomplete="email" inputmode="email"></label>
+          <input type="text" name="_honey" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+          <button type="button" class="btn btn-primary" data-action="contact-send">Envia el missatge</button>
+          <p class="muted small" id="contact-status" role="status"></p>
+        </form>` : '<p class="muted small">El formulari de contacte encara no està configurat.</p>'}
+      </section>
+      <button type="button" class="btn-text" data-go="avui">Torna al repte d'avui</button>
+    </section>`;
+  }
+
+  function sendContact() {
+    const f = document.getElementById('contact'), out = document.getElementById('contact-status');
+    if (!f || !C.contactEmail) return;
+    const v = n => (f.elements[n] ? f.elements[n].value : '').trim();
+    if (v('_honey')) return;
+    if (v('missatge').length < 3) { out.textContent = 'Escriu el missatge abans d’enviar-lo.'; return; }
+    const mail = v('correu');
+    if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) { out.textContent = 'Revisa el correu (o deixa’l buit).'; return; }
+    const btn = f.querySelector('[data-action="contact-send"]');
+    btn.disabled = true; out.textContent = 'Enviant…';
+    const body = { _subject: 'combina ≈ · ' + v('tipus'), _template: 'table', _captcha: 'false',
+      tipus: v('tipus'), missatge: v('missatge'), nom: v('nom') || '—', repte: 'nº ' + state.puzzle.number };
+    if (mail) { body.correu = mail; body._replyto = mail; }
+    fetch('https://formsubmit.co/ajax/' + encodeURIComponent(C.contactEmail), {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body)
+    }).then(r => r.json().then(j => ({ ok: r.ok, j }))).then(({ ok, j }) => {
+      if (!ok || String(j.success) === 'false') throw new Error(j.message || 'error');
+      track('contacte_enviat', 'Missatge de contacte');
+      f.innerHTML = '<p class="contact-ok"><b class="gold">Gràcies!</b> He rebut el teu missatge.</p>';
+    }).catch(() => { btn.disabled = false; out.textContent = 'No s’ha pogut enviar. Torna-ho a provar d’aquí a una estona.'; });
   }
 
   /* ================= Pantalla: vitrina ================= */
@@ -1218,7 +1461,7 @@
       const seg = (id, label) => `<button type="button" class="${state.rankScope === id ? 'on' : ''}" data-scope="${id}" aria-pressed="${state.rankScope === id}">${label}</button>`;
       body = `<div class="scope">
           <div class="seg" role="group" aria-label="Qui surt al rànquing">${seg('all', 'Tothom')}${seg('friends', 'Amics' + (nf ? ' · ' + nf : ''))}</div>
-          <button type="button" class="btn btn-ghost btn-sm" data-action="challenge">${ICON.share}Repta un amic</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-action="challenge">${ICON.share}Comparteix el teu resultat!</button>
         </div>
         ${saveCard('Inicia sessió amb Google per aparèixer al rànquing i no perdre el teu progrés.')}
         <div id="rank-body"><p class="muted center pad">Carregant…</p></div>`;
@@ -1234,7 +1477,7 @@
 
   // Amics: qui t'ha enviat un enllaç de repte (i tu mateix, si has iniciat la sessió)
   function friendUids() {
-    const me = state.user && state.user.uid;
+    const me = B.user && B.user.uid;
     return Object.keys(store.friends).filter(u => u !== me);
   }
 
@@ -1248,10 +1491,10 @@
         const box = document.getElementById('rank-body');
         if (box) box.innerHTML = `<div class="card notice center-notice"><p><b>Encara no tens amics al rànquing.</b></p>
           <p class="muted small">Envia el teu enllaç de repte: quan un amic l'obri, us podreu comparar aquí. Demana-li que te n'enviï un a tu també!</p>
-          <button type="button" class="btn btn-primary btn-sm" data-action="challenge">${ICON.share}Repta un amic</button></div>`;
+          <button type="button" class="btn btn-primary btn-sm" data-action="challenge">${ICON.share}Comparteix el teu resultat!</button></div>`;
         return;
       }
-      if (state.user) uids = uids.concat(state.user.uid);
+      if (B.user) uids = uids.concat(B.user.uid);
     }
     let p;
     if (tab === 'day') p = B.day(state.dayKey, uids);
@@ -1278,7 +1521,7 @@
       dist = '<div class="dist" aria-label="Distribució de rangs">' + SV.list.map((s, i) =>
         `<div><small>${Math.round(counts[i] / rows.length * 100)}%</small><i style="height:${Math.max(4, counts[i] / max * 56)}px;background:${s.color}"></i><small>${s.name}</small></div>`).join('') + '</div>';
     }
-    const me = state.user && state.user.uid;
+    const me = B.user && B.user.uid;
     const list = rows.slice(0, 100).map((r, i) => {
       const s = tab === 'day' ? SV.rankFor(r.total) : null;
       const ring = s ? `border-color:${s.color};box-shadow:0 0 10px rgba(${s.rgb},.35)` : '';
@@ -1362,7 +1605,7 @@
     </section>`;
   }
 
-  const SCREENS = { aula: screenAula, entrada: screenEntrada, tutorial: screenTutorial, avui: screenAvui, joc: screenJoc, correccio: screenCorreccio, resultat: screenResultat, ranquing: screenRanquing, savis: screenSavis, vitrina: screenVitrina };
+  const SCREENS = { desglos: screenDesglos, sobre: screenSobre, aula: screenAula, entrada: screenEntrada, tutorial: screenTutorial, avui: screenAvui, joc: screenJoc, correccio: screenCorreccio, resultat: screenResultat, ranquing: screenRanquing, savis: screenSavis, vitrina: screenVitrina };
 
   /* ================= Modals ================= */
   function openModal(html) {
@@ -1377,31 +1620,34 @@
     let html = '<h2 class="title sm">El teu perfil</h2>';
     const played = Object.keys(store.days).filter(k => store.days[k].finished).length;
     const stats = `<p class="muted small">Dies completats: <b class="chalk">${played}</b> · Ratxa: <b class="chalk">${streak()}</b> · Segells: <b class="chalk">${ACH.filter(a => store.ach[a.id]).length}/${ACH.length}</b></p>`;
-    if (state.user) {
-      const av = parseAv(state.user.avatar) || { gi: 0, ci: 4 };
+    const me = B.user;
+    if (me) {
+      const av = parseAv(me.avatar) || { gi: 0, ci: 4 };
       state.pf = { gi: av.gi, ci: av.ci };
-      html += `<div class="prof-head"><span id="pf-prev"></span><div><b id="pf-show">${esc(state.user.name)}</b><small>Així et veuran al rànquing</small></div></div>
+      html += `<div class="prof-head"><span id="pf-prev"></span><div><b id="pf-show">${esc(me.name)}</b><small>Així et veuran al rànquing</small></div></div>
         <label class="field"><span class="kicker">Nom públic</span>
-          <input id="pf-name" type="text" maxlength="20" autocomplete="nickname" spellcheck="false" value="${esc(state.user.name)}"></label>
+          <input id="pf-name" type="text" maxlength="20" autocomplete="nickname" spellcheck="false" value="${esc(me.name)}"></label>
         <div class="field"><span class="kicker">Avatar</span>
           <div class="av-grid">${AV_GLYPHS.map((g, k) => `<button type="button" data-av-g="${k}" aria-label="Símbol ${g}">${g}</button>`).join('')}</div>
           <div class="av-colors">${SV.list.map((s, k) => `<button type="button" data-av-c="${k}" style="background:${s.color}" aria-label="Color ${s.colorName}"></button>`).join('')}</div>
         </div>
         <button type="button" class="btn btn-primary" data-action="profile-save">Desa el perfil</button>
-        <button type="button" class="btn btn-ghost" data-action="challenge">${ICON.share}Repta un amic</button>
+        <button type="button" class="btn btn-ghost" data-action="challenge">${ICON.share}Comparteix el teu resultat!</button>
         ${stats}
-        <button type="button" class="btn-text" data-action="signout">Tanca la sessió</button>`;
+        ${me.anon ? `<p class="muted small">Jugues com a convidat: la ratxa i els segells només es guarden en aquest navegador.</p>
+          <button type="button" class="btn btn-ghost" data-action="signin">${ICON.google}Guarda-ho tot amb Google</button>`
+          : '<button type="button" class="btn-text" data-action="signout">Tanca la sessió</button>'}${aboutLink()}`;
       openModal(html);
       paintProfile();
       return;
     }
     if (B.enabled) {
-      html += `<p class="lead">Ara jugues com a convidat: el progrés només es guarda en aquest navegador. Inicia sessió amb Google per no perdre’l, triar un nom i un avatar i aparèixer al rànquing.</p>
+      html += `<p class="lead">Ara jugues com a convidat: el progrés només es guarda en aquest navegador. Acaba el repte d'avui i escriu el teu nom per sortir al rànquing, o inicia sessió amb Google per no perdre’l mai.</p>
         <button type="button" class="btn btn-primary" data-action="signin">${ICON.google}Continua amb Google</button>`;
     } else {
       html += '<p class="lead">Mode local: les partides es guarden en aquest dispositiu. El rànquing compartit s’activa quan es configura Firebase.</p>';
     }
-    openModal(html + stats);
+    openModal(html + stats + aboutLink());
   }
 
   // Previsualització en directe de l'avatar i el nom
@@ -1434,6 +1680,7 @@
     if (c) state.pf.ci = +c.dataset.avC;
     paintProfile();
   });
+  document.addEventListener('keydown', e => { if (e.target && e.target.classList && e.target.classList.contains('guest-name') && e.key === 'Enter') { e.preventDefault(); guestJoin(e.target.parentNode.querySelector('[data-action="guest-join"]')); } });
   modalEl.addEventListener('input', e => { if (e.target.id === 'pf-name') paintProfile(); });
   modalEl.addEventListener('keydown', e => { if (e.target.id === 'pf-name' && e.key === 'Enter') { e.preventDefault(); saveProfile(); } });
 
@@ -1504,7 +1751,7 @@
   /* ================= Accions ================= */
   function submitDay() {
     const d = day();
-    if (!d.finished || d.submitted || !B.enabled || !state.user) return;
+    if (!d.finished || d.submitted || !B.enabled || !B.user) return;
     B.submitDay(state.dayKey, {
       total: totalOf(d), exact: exactOf(d),
       levels: state.puzzle.levels.map((_, i) => (d.levels[i] ? d.levels[i].points : 0)),
@@ -1545,6 +1792,7 @@
       case 'install': install(); break;
       case 'challenge': challenge(); break;
       case 'profile-save': saveProfile(); break;
+      case 'guest-join': guestJoin(t); break;
       case 'guest': store.guest = true; save(); if (!store.seenHelp) openTutorial(); else go('avui'); break;
       case 'signin': closeModal(); B.signIn().catch(err => toast('No s’ha pogut iniciar la sessió: ' + (err.message || err))); break;
       case 'signout': closeModal(); B.signOut(); break;
@@ -1552,6 +1800,8 @@
       case 'start': startLevel(); break;
       case 'next': beginLevel(state.level + 1); break;
       case 'replay': render(); break;
+      case 'pause': state.flash++; go('avui'); break;
+      case 'contact-send': sendContact(); break;
       case 'share': share(); break;
       case 'profile': profileModal(); break;
       case 'sound':
@@ -1639,11 +1889,17 @@
       const st = d.levels[i];
       if (st && st.startAt && !st.done) {
         state.level = i;
-        if (remaining(st, i) <= 0) { finishLevel(true); return; }
+        if (remaining(st, i) <= 0) { finishLevel(true, true); return; }
         return go('joc');
       }
     }
     go('avui');
+  }
+
+  // Sense portada: qui no ha jugat mai entra directament al tutorial (que ja és jugar)
+  function firstScreen() {
+    if (!store.seenHelp) { store.guest = true; save(); track('tutorial-obert', 'Tutorial obert'); return openTutorial(); }
+    resumeOrHome();
   }
 
   applyFreezes();
@@ -1651,15 +1907,20 @@
   loadChallenger();
 
   B.onAuth(u => {
-    state.user = u;
+    state.user = u && !u.anon ? u : null;
+    state.anon = u && u.anon ? u : null;
     cloud.ready = false;
-    if (u) {
+    if (u && u.anon) {
+      // Convidat amb nom: puntua al rànquing; el progrés segueix només en aquest navegador
+      if (store.friends[u.uid]) delete store.friends[u.uid];
+      submitDay();
+    } else if (u) {
       store.guest = true;
       if (store.friends[u.uid]) delete store.friends[u.uid];
       save();
       // Recupera el progrés desat al núvol i el combina amb el d'aquest navegador
       B.loadSave().then(r => {
-        if (state.user !== u) return;
+        if (B.user !== u) return;
         mergeStore(r);
         cloud.ready = true;
         save(); pushCloud();
@@ -1669,15 +1930,13 @@
         if (r && state.screen && state.screen !== 'entrada' && !playing) render();
       }).catch(e => { console.warn('No s’ha pogut llegir el progrés del núvol', e); submitDay(); });
     }
-    if (!state.screen) {
-      if (!store.guest && !u) go('entrada');
-      else resumeOrHome();
-    } else if (state.screen === 'entrada' && u) {
+    if (!state.screen) firstScreen();
+    else if (state.screen === 'entrada' && u) {
       if (!store.seenHelp) openTutorial(); else resumeOrHome();
     } else render();
   });
   if (B.enabled) {
     // Si Firebase tarda, no deixem la pantalla en blanc
-    setTimeout(() => { if (!state.screen) { if (store.guest) resumeOrHome(); else go('entrada'); } }, 2500);
+    setTimeout(() => { if (!state.screen) firstScreen(); }, 2500);
   }
 })();

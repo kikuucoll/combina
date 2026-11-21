@@ -27,7 +27,10 @@
       db = global.firebase.firestore();
       auth.onAuthStateChanged(function (u) {
         if (!u) { user = null; return notify(); }
-        user = { uid: u.uid, name: shortName(u.displayName), photo: u.photoURL || '', avatar: '' };
+        // Convidat amb nom (inici anònim): surt al rànquing però no té compte de Google
+        var prevName = user && user.uid === u.uid ? user.name : '';
+        user = { uid: u.uid, anon: !!u.isAnonymous, name: u.isAnonymous ? (prevName || 'Convidat') : shortName(u.displayName),
+          photo: u.photoURL || '', avatar: '' };
         // Perfil personalitzat (nom i avatar), si n'hi ha
         db.collection('players').doc(u.uid).get().then(function (d) {
           var x = d.exists ? d.data() : {};
@@ -50,9 +53,36 @@
 
     onAuth: function (fn) { listeners.push(fn); if (!enabled) fn(null); },
 
+    /* Convidat que vol sortir al rànquing: compte anònim amb el nom que triï */
+    guestJoin: function (name, avatar) {
+      if (!enabled) return Promise.reject(new Error('Rànquing no configurat'));
+      var go = auth.currentUser ? Promise.resolve({ user: auth.currentUser }) : auth.signInAnonymously();
+      return go.then(function (cred) {
+        var u = cred.user;
+        user = { uid: u.uid, anon: !!u.isAnonymous, name: name, photo: '', avatar: avatar || '' };
+        return db.collection('players').doc(u.uid).set({ name: name, avatar: avatar || '', updatedAt: ts() }, { merge: true });
+      }).then(function () { notify(); return user; });
+    },
+
     signIn: function () {
       if (!enabled) return Promise.reject(new Error('Rànquing no configurat'));
       var provider = new global.firebase.auth.GoogleAuthProvider();
+      var cur = auth.currentUser;
+      // Si ja jugava com a convidat amb nom, s'hi vincula Google i es conserven les puntuacions
+      if (cur && cur.isAnonymous) {
+        return cur.linkWithPopup(provider).then(function (r) {
+          // Mateix uid: es manté el nom triat; només deixa de ser convidat (onAuthStateChanged no salta)
+          var u = r.user;
+          user = { uid: u.uid, anon: false, name: (user && user.name) || shortName(u.displayName),
+            photo: u.photoURL || '', avatar: (user && user.avatar) || '' };
+          notify();
+          return r;
+        }).catch(function (e) {
+          if (e && e.code === 'auth/credential-already-in-use' && e.credential) return auth.signInWithCredential(e.credential);
+          if (e && (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment')) return cur.linkWithRedirect(provider);
+          throw e;
+        });
+      }
       return auth.signInWithPopup(provider).catch(function (e) {
         if (e && (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment')) {
           return auth.signInWithRedirect(provider);

@@ -27,6 +27,7 @@ html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0;
   min-height: 100vh;
+  min-height: 100dvh;
   color: var(--chalk);
   font-family: var(--sans);
   background-color: var(--ink);
@@ -61,6 +62,7 @@ sup { font-size: .6em; line-height: 0; }
   max-width: 540px; margin: 0 auto;
   padding: 0 20px calc(var(--nav-h) + 28px + env(safe-area-inset-bottom));
   min-height: 100vh;
+  min-height: 100dvh;
 }
 .no-nav .view { padding-bottom: calc(28px + env(safe-area-inset-bottom)); }
 .screen { display: flex; flex-direction: column; gap: 18px; padding-top: max(18px, env(safe-area-inset-top)); animation: fadeIn .35s ease both; }
@@ -962,3 +964,139 @@ button.chip:hover { border-color: rgba(var(--gold-rgb), .55); box-shadow: 0 0 14
 .rules-box[open] summary::after { content: '−'; }
 .rules-box[open] summary { color: var(--chalk); }
 .rules-box .tut-rules { margin: 0 0 14px; }
+
+/* =====================================================================
+   v3 · Flux ràpid entre nivells, tauler a mida de pantalla, compartir
+   ===================================================================== */
+
+/* Tauler de joc: ocupa exactament l'alçada visible (barra de Safari inclosa) */
+.no-nav .view:has(.joc), .no-nav .view:has(.tutorial) { padding-bottom: 0; }
+.screen.joc, .screen.tutorial {
+  min-height: 100vh; min-height: 100dvh;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  gap: calc(14px * var(--k, 1));
+}
+.joc .game, .tutorial .game { flex: 1; gap: calc(14px * var(--k, 1)); }
+.joc .game-main, .tutorial .game-main { gap: calc(14px * var(--k, 1)); }
+/* L'objectiu a dalt; xifres i operacions al terç inferior, a l'abast del polze */
+@media (max-width: 959px) {
+  .joc .game, .tutorial .game { justify-content: flex-end; }
+  .joc .game-main, .tutorial .game-main { flex: 1; }
+  .joc .target, .tutorial .target { margin-bottom: auto; }
+}
+.target-num { font-size: calc(92px * var(--k, 1)); }
+.small-target .target-num { font-size: calc(64px * var(--k, 1)); }
+.tile { height: calc(60px * var(--k, 1)); }
+.key { height: calc(56px * var(--k, 1)); }
+.expr-card { padding: calc(14px * var(--k, 1)) 16px calc(10px * var(--k, 1)); }
+.expr { min-height: calc(40px * var(--k, 1)); }
+.expr-live { margin-top: calc(10px * var(--k, 1)); padding-top: calc(8px * var(--k, 1)); }
+.view[style*="--k"] .hint, .view[style*="--k"] .tut-intro .lead { display: none; }
+.keypad.basic .key.submit { grid-column: span 4; }
+.tut-brand { display: flex; flex-direction: column; gap: 4px; margin-bottom: 6px; }
+.tut-brand .wordmark { font-size: 30px; }
+.tut-intro { display: flex; flex-direction: column; gap: 8px; }
+.tut-intro .challenge { margin: 4px 0; }
+
+/* Entre nivells: només els punts, ràpid, i cap al següent */
+.lvl-flash {
+  position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; padding: 24px;
+  background: rgba(8, 10, 14, .78); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  animation: fadeIn .2s ease both;
+}
+.lf-card { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px; animation: pop .35s cubic-bezier(.3, 1.6, .5, 1) both; }
+.lf-pts { font-family: var(--serif); font-size: clamp(64px, 22vw, 110px); font-weight: 500; line-height: 1; letter-spacing: -2px; font-variant-numeric: tabular-nums; }
+.lf-pts.burst { animation: burst .7s cubic-bezier(.3, 1.6, .5, 1); }
+.lf-msg { font-size: 17px; color: var(--chalk); }
+.lvl-flash.exact .lf-msg { color: var(--gold-t); }
+.lf-total { font-family: var(--mono); font-size: 14px; color: var(--muted); margin-top: 6px; }
+.lf-total b { color: var(--chalk); font-size: 18px; }
+.lf-next { font-family: var(--mono); font-size: 12px; letter-spacing: 1px; text-transform: uppercase; color: var(--faint); margin-top: 10px; }
+.lf-pause { margin-top: 4px; font-size: 13px; }
+
+/* Correcció del mode aula: el botó de continuar sempre a la vista */
+.correccio .cta-row {
+  position: sticky; bottom: 0; z-index: 3; margin: 0 -20px; padding: 12px 20px max(12px, env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, rgba(11, 14, 18, 0), rgba(11, 14, 18, .94) 30%);
+}
+.no-nav .view:has(.correccio) { padding-bottom: 0; }
+
+/* Resultat: compartir a la vista, sense scroll */
+.btn-gold {
+  background: linear-gradient(180deg, #F0C976, var(--gold)); color: var(--ink); width: 100%;
+  box-shadow: 0 0 0 1px rgba(var(--gold-rgb), .5), 0 10px 30px -10px rgba(var(--gold-rgb), .7);
+}
+.btn-gold:hover { background: linear-gradient(180deg, #F6D58C, #EBC06A); }
+.res-actions { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 6px; animation: fadeIn .4s ease .3s both; }
+.res-hero .rr-words { width: 100%; }
+.bar-row b .star { font-style: normal; margin-left: 4px; color: var(--line-2); }
+.bar-row b .star.on { color: var(--gold); text-shadow: 0 0 8px rgba(var(--gold-rgb), .7); }
+.bar-row { grid-template-columns: 26px 1fr 88px; }
+@media (max-width: 959px) {
+  .resultat .score3d { padding: 8px 0 22px; }
+  .resultat .s3d-num { font-size: 84px; }
+  .resultat .rank-line { margin-top: -6px; }
+  .resultat .rank-reveal { margin-top: 4px; gap: 12px; }
+  .resultat .rr-medal { padding: 4px; }
+  .resultat .rr-medal .medal { width: 64px !important; height: 64px !important; }
+  .resultat .res-name { font-size: 32px; }
+}
+
+/* Desglòs del dia */
+.dg-item { padding: 0; overflow: hidden; }
+.dg-item summary { list-style: none; display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 10px; padding: 14px 16px; cursor: pointer; }
+.dg-item summary::-webkit-details-marker { display: none; }
+.dg-n { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.dg-t { font-size: 15px; }
+.dg-t b { font-family: var(--serif); font-size: 20px; font-weight: 500; }
+.dg-p { font-family: var(--mono); font-size: 17px; font-weight: 600; }
+.dg-body { padding: 0 16px 14px; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid #1E242D; }
+.steps-mini { list-style: none; margin: 0; padding: 0; }
+.steps-mini li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 10px; padding: 8px 0; border-bottom: 1px solid #1E242D; }
+.steps-mini .step-expr { font-size: 20px; }
+.steps-mini .step-expr.final { font-size: 24px; }
+.dg-sol { display: flex; flex-direction: column; gap: 4px; font-family: var(--serif); font-size: 19px; }
+
+/* Sobre mi i contacte */
+.about-link { margin-top: 8px; font-size: 13px; color: var(--muted); }
+.about-card, .contact-card { padding: 18px; display: flex; flex-direction: column; gap: 12px; line-height: 1.55; }
+.contact-form { display: flex; flex-direction: column; gap: 14px; }
+.field select, .field textarea {
+  padding: 12px 14px; border: 1px solid var(--line-2); border-radius: 12px;
+  background: var(--surface); color: var(--chalk); font-family: var(--sans); font-size: 16px;
+}
+.field select { height: 46px; padding: 0 12px; }
+.field textarea { resize: vertical; min-height: 120px; line-height: 1.45; }
+.field select:focus, .field textarea:focus { outline: none; border-color: var(--gold); }
+.hp { position: absolute !important; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.contact-ok { font-size: 16px; padding: 8px 0; }
+@media (min-width: 960px) {
+  .target-num { font-size: 120px; }
+  .tile { height: 68px; }
+  .key { height: 62px; }
+  .screen.joc, .screen.tutorial { min-height: 0; }
+}
+
+/* Navegació amb «Sobre mi» (6 elements) */
+.nav { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.nav-item span { white-space: nowrap; }
+@media (max-width: 380px) { .nav-item { font-size: 10px; } }
+@media (min-width: 960px) {
+  .nav-item:last-child { margin-top: 0; }
+  .nav-item[data-go="sobre"] { margin-top: auto; }
+}
+.about-hi { font-family: var(--serif); font-size: 21px; line-height: 1.35; }
+
+/* Convidat: nom per sortir al rànquing */
+.name-card { width: 100%; padding: 16px; display: flex; flex-direction: column; gap: 10px; border-color: rgba(var(--gold-rgb), .35); text-align: left; }
+.name-row { display: flex; gap: 8px; }
+.name-row input {
+  flex: 1; min-width: 0; height: 46px; padding: 0 14px; border: 1px solid var(--line-2); border-radius: 12px;
+  background: var(--surface-2); color: var(--chalk); font-family: var(--sans); font-size: 16px;
+}
+.name-row input:focus { outline: none; border-color: var(--gold); }
+.name-row .btn { min-height: 46px; flex: none; }
+.name-card .btn-text { align-self: flex-start; font-size: 13px; }
+.or-line { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--faint); }
+.or-line::before, .or-line::after { content: ''; flex: 1; height: 1px; background: var(--line-2); }
+.modal-card .btn small { font-weight: 400; font-size: 12.5px; }

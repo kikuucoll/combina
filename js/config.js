@@ -16,10 +16,16 @@ window.COMBINA_CONFIG = {
   // Puntuació màxima del dia (5 rondes × 100 punts)
   dailyTotal: 500,
   levelMax: 100,
-  // Punts màxims d'una ronda segons les xifres usades: de levelBase (poques) a levelMax (totes)
-  levelBase: 70,
+  // Punts màxims d'una ronda segons les xifres usades (100 = l'exacte sempre val 100;
+  // fer servir totes les xifres dona una estrella ★ de bonus, sense restar punts)
+  levelBase: 100,
   // Cada unitat de distància a l'objectiu resta aquesta fracció dels punts (0.1 = 10 %)
   penaltyPerUnit: 0.1,
+  // Nivells (comptant des de 0) a partir dels quals apareixen les tecles xʸ i √ al repte diari
+  advancedFrom: 3,
+  // Correu on arriben els missatges del formulari «Sobre mi · Contacte» (via FormSubmit).
+  // Buit = formulari desactivat.
+  contactEmail: 'francesc.coll.boada@gmail.com',
 
   // Projecte de Firebase (inici de sessió amb Google i rànquing compartit).
   // Aquestes dades són públiques per disseny; la seguretat la donen les regles de Firestore.
