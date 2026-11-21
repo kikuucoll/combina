@@ -1,9 +1,10 @@
-/* Rànquing compartit i inici de sessió amb Google (Firebase).
+/* Rànquing compartit, perfil i desat al núvol amb Google (Firebase).
  * Si COMBINA_CONFIG.firebase és null, l'app funciona en mode local.
  *
  * Estructura a Firestore:
- *   days/{AAAA-MM-DD}/scores/{uid} → { name, photo, total, exact, levels:[p1..p5], at }
- *   players/{uid}                   → { name, photo, sum, days, best, last, updatedAt }
+ *   days/{AAAA-MM-DD}/scores/{uid} → { name, avatar, total, exact, levels:[p1..p5], at }
+ *   players/{uid}                   → { name, avatar, sum, days, best, last, updatedAt }
+ *   saves/{uid}                     → { data: "<progrés local en JSON>", at }   (privat)
  */
 (function (global) {
   'use strict';
@@ -12,14 +13,27 @@
   var enabled = !!(cfg.firebase && global.firebase);
   var auth = null, db = null, user = null, listeners = [];
 
+  function shortName(name) {
+    var p = String(name || 'Jugador').trim().split(/\s+/);
+    return p.length > 1 ? p[0] + ' ' + p[p.length - 1].charAt(0) + '.' : p[0];
+  }
+  function ts() { return global.firebase.firestore.FieldValue.serverTimestamp(); }
+  function notify() { listeners.forEach(function (fn) { fn(user); }); }
+
   if (enabled) {
     try {
       global.firebase.initializeApp(cfg.firebase);
       auth = global.firebase.auth();
       db = global.firebase.firestore();
       auth.onAuthStateChanged(function (u) {
-        user = u ? { uid: u.uid, name: u.displayName || 'Jugador', photo: u.photoURL || '' } : null;
-        listeners.forEach(function (fn) { fn(user); });
+        if (!u) { user = null; return notify(); }
+        user = { uid: u.uid, name: shortName(u.displayName), photo: u.photoURL || '', avatar: '' };
+        // Perfil personalitzat (nom i avatar), si n'hi ha
+        db.collection('players').doc(u.uid).get().then(function (d) {
+          var x = d.exists ? d.data() : {};
+          if (x.name) user.name = x.name;
+          if (x.avatar) user.avatar = x.avatar;
+        }).catch(function () { /* sense perfil */ }).then(notify);
       });
     } catch (e) {
       console.warn('Firebase no s’ha pogut iniciar:', e);
@@ -27,10 +41,8 @@
     }
   }
 
-  function shortName(name) {
-    var p = String(name || 'Jugador').trim().split(/\s+/);
-    return p.length > 1 ? p[0] + ' ' + p[p.length - 1].charAt(0) + '.' : p[0];
-  }
+  function scoresOf(dayKey) { return db.collection('days').doc(dayKey).collection('scores'); }
+  function withUid(d) { var x = d.data(); x.uid = d.id; return x; }
 
   var Backend = {
     get enabled() { return enabled; },
@@ -54,44 +66,81 @@
     /* Desa el resultat del dia (només una vegada per dia) */
     submitDay: function (dayKey, result) {
       if (!enabled || !user) return Promise.resolve(false);
-      var scoreRef = db.collection('days').doc(dayKey).collection('scores').doc(user.uid);
+      var scoreRef = scoresOf(dayKey).doc(user.uid);
       var playerRef = db.collection('players').doc(user.uid);
-      var name = shortName(user.name);
       return db.runTransaction(function (tx) {
         return Promise.all([tx.get(scoreRef), tx.get(playerRef)]).then(function (r) {
           if (r[0].exists) return false;
-          var p = r[1].exists ? r[1].data() : { sum: 0, days: 0, best: 0 };
+          var p = r[1].exists ? r[1].data() : {};
           tx.set(scoreRef, {
-            name: name, photo: user.photo, total: result.total, exact: result.exact,
-            levels: result.levels, at: global.firebase.firestore.FieldValue.serverTimestamp()
+            name: user.name, avatar: user.avatar || '', total: result.total, exact: result.exact,
+            levels: result.levels, exprs: result.exprs || [], at: ts()
           });
           tx.set(playerRef, {
-            name: name, photo: user.photo,
+            name: user.name, avatar: user.avatar || '',
             sum: (p.sum || 0) + result.total, days: (p.days || 0) + 1,
-            best: Math.max(p.best || 0, result.total), last: dayKey,
-            updatedAt: global.firebase.firestore.FieldValue.serverTimestamp()
-          });
+            best: Math.max(p.best || 0, result.total), last: dayKey, updatedAt: ts()
+          }, { merge: true });
           return true;
         });
       });
     },
 
-    /* Rànquing d'un dia */
-    day: function (dayKey) {
+    /* Canvia el nom i l'avatar públics (i els d'avui, si ja hi ha puntuació) */
+    saveProfile: function (name, avatar, dayKey) {
+      if (!enabled || !user) return Promise.reject(new Error('Cal iniciar la sessió'));
+      var data = { name: name, avatar: avatar || '', updatedAt: ts() };
+      return db.collection('players').doc(user.uid).set(data, { merge: true }).then(function () {
+        user.name = name; user.avatar = avatar || '';
+        var ref = scoresOf(dayKey).doc(user.uid);
+        return ref.get().then(function (d) {
+          if (d.exists) return ref.update({ name: name, avatar: avatar || '' });
+        }).catch(function () { /* la d'avui és opcional */ });
+      });
+    },
+
+    /* Progrés complet (ratxa, segells, dies…), privat de cada jugador */
+    loadSave: function () {
+      if (!enabled || !user) return Promise.resolve(null);
+      return db.collection('saves').doc(user.uid).get().then(function (d) {
+        if (!d.exists) return null;
+        try { return JSON.parse(d.data().data); } catch (e) { return null; }
+      });
+    },
+    pushSave: function (obj) {
+      if (!enabled || !user) return Promise.resolve();
+      return db.collection('saves').doc(user.uid).set({ data: JSON.stringify(obj), at: ts() });
+    },
+
+    /* Un jugador concret (per als reptes entre amics) */
+    player: function (uid) {
+      if (!enabled) return Promise.resolve(null);
+      return db.collection('players').doc(uid).get().then(function (d) { return d.exists ? withUid(d) : null; });
+    },
+    scoreOf: function (dayKey, uid) {
+      if (!enabled) return Promise.resolve(null);
+      return scoresOf(dayKey).doc(uid).get().then(function (d) { return d.exists ? withUid(d) : null; });
+    },
+
+    /* Rànquing d'un dia (tothom, o només una llista de jugadors) */
+    day: function (dayKey, uids) {
       if (!enabled) return Promise.resolve([]);
-      return db.collection('days').doc(dayKey).collection('scores')
-        .orderBy('total', 'desc').limit(200).get()
-        .then(function (q) { return q.docs.map(function (d) { var x = d.data(); x.uid = d.id; return x; }); });
+      if (uids) {
+        return Promise.all(uids.map(function (u) { return Backend.scoreOf(dayKey, u).catch(function () { return null; }); }))
+          .then(function (l) { return l.filter(Boolean).sort(function (a, b) { return b.total - a.total; }); });
+      }
+      return scoresOf(dayKey).orderBy('total', 'desc').limit(200).get()
+        .then(function (q) { return q.docs.map(withUid); });
     },
 
     /* Rànquing dels últims 7 reptes (suma) */
-    week: function (dayKeys) {
+    week: function (dayKeys, uids) {
       if (!enabled) return Promise.resolve([]);
-      return Promise.all(dayKeys.map(function (k) { return Backend.day(k); })).then(function (lists) {
+      return Promise.all(dayKeys.map(function (k) { return Backend.day(k, uids); })).then(function (lists) {
         var acc = {};
         lists.forEach(function (list) {
           list.forEach(function (s) {
-            var a = acc[s.uid] || (acc[s.uid] = { uid: s.uid, name: s.name, photo: s.photo, total: 0, exact: 0, days: 0 });
+            var a = acc[s.uid] || (acc[s.uid] = { uid: s.uid, name: s.name, avatar: s.avatar, total: 0, exact: 0, days: 0 });
             a.total += s.total; a.exact += s.exact || 0; a.days++;
           });
         });
@@ -100,12 +149,15 @@
     },
 
     /* Rànquing total acumulat */
-    total: function () {
+    total: function (uids) {
       if (!enabled) return Promise.resolve([]);
+      var map = function (x) { return { uid: x.uid, name: x.name, avatar: x.avatar, total: x.sum || 0, days: x.days || 0, best: x.best || 0 }; };
+      if (uids) {
+        return Promise.all(uids.map(function (u) { return Backend.player(u).catch(function () { return null; }); }))
+          .then(function (l) { return l.filter(function (x) { return x && x.days; }).map(map).sort(function (a, b) { return b.total - a.total; }); });
+      }
       return db.collection('players').orderBy('sum', 'desc').limit(200).get()
-        .then(function (q) {
-          return q.docs.map(function (d) { var x = d.data(); return { uid: d.id, name: x.name, photo: x.photo, total: x.sum, days: x.days, best: x.best }; });
-        });
+        .then(function (q) { return q.docs.map(function (d) { return map(withUid(d)); }); });
     }
   };
 

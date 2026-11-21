@@ -9,10 +9,10 @@ Joc web (mòbil i ordinador) sense dependències: HTML, CSS i JavaScript. Funcio
 - **Repte diari automàtic.** Cada dia a les **9:00 (hora de Barcelona)** canvia el repte. Els 5 nivells es generen a partir de la data, de manera que tothom rep exactament el mateix repte sense necessitat de servidor.
 - **Nivells:** 4, 5, 6, 7 i 8 xifres (de l'1 al 20), amb 30, 35, 40, 45 i 50 segons.
 - **Operacions:** + − × ÷, parèntesis, potències (l'exponent també és una xifra) i arrels quadrades. Cada xifra, un sol cop.
-- **Puntuació:** punts = objectiu − distància (mínim 0). Si l'encertes, guanyes tants punts com l'objectiu. Els 5 objectius de cada dia sumen sempre **1000** (`dailyTotal`), que és la puntuació màxima diària. Si s'acaba el temps, es corregeix el que hi hagi escrit.
+- **Puntuació:** cada ronda val fins a **100 punts** (500 al dia). Punts = precisió × xifres: el màxim de la ronda va de 70 (`levelBase`, poques xifres) a 100 (`levelMax`, totes les xifres), i cada unitat de distància a l'objectiu en resta un 10 % (`penaltyPerUnit`). Cada repte es pot resoldre exactament fent servir totes les xifres. Si s'acaba el temps, es corregeix el que hi hagi escrit.
 - **Correcció animada** pas a pas seguint la jerarquia de les operacions, i una solució exacta per aprendre.
-- **Rangs diaris:** Pitàgores (0–200), Hipàtia (201–400), Arquimedes (401–600), Noether (601–800), Gauss (801–1000).
-- **Dificultat suau:** el nivell 1 només fa servir + − × amb 2 o 3 xifres; el nivell 2 no té potències ni arrels; aquestes apareixen al nivell 3 i sobretot als nivells 4 i 5. Els primers 7 reptes des de `startDate` tenen objectius més petits.
+- **Rangs diaris:** Pitàgores (0–100), Hipàtia (101–200), Arquimedes (201–300), Noether (301–400), Gauss (401–500).
+- **Dificultat suau:** objectius petits (ronda 1: 10–50 … ronda 5: 25–160), sobretot amb sumes i restes; les potències i arrels només apareixen de tant en tant a les últimes rondes.
 - **Tutorial jugable** («Com es juga»): arriba al 10 amb 2, 3 i 4, sense rellotge i amb indicacions pas a pas. Surt sol el primer cop.
 - **Ratxa amb fites i comodins:** fites als 3, 7, 14, 30 i 100 dies. Cada 7 dies seguits es guanya un comodí (màxim 2) que salva la ratxa automàticament si un dia no es juga.
 - **Vitrina:** medalles aconseguides de cada savi i 16 segells per col·leccionar (primer exacte, potència, arrel, llampec, al límit, dia perfecte, ratxes, Gauss…).

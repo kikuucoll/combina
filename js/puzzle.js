@@ -102,9 +102,24 @@
     { lo: 20, hi: 130, k: [7, 7], w: [0.42, 0.32, 0.20, 0.06], pow: 0.15, root: 0.12, needMul: false, strong: 0 },
     { lo: 25, hi: 160, k: [8, 8], w: [0.42, 0.32, 0.20, 0.06], pow: 0.2,  root: 0.15, needMul: false, strong: 0 }
   ];
+  // Corba nova (des de COMBINA_CONFIG.curveFrom): N1–N3 molt assequibles, amb xifres i objectius petits.
+  // Objectius: N1 fins a 12 · N2 13–20 · N3 21–35 · N4 36–100 · N5 més de 100.  max = xifra més gran.
+  var SPEC2 = [
+    { lo: 1,   hi: 12,  max: 10, k: [4, 4], w: [0.50, 0.38, 0.12, 0],    pow: 0,    root: 0,    needMul: false, strong: 0 },
+    { lo: 13,  hi: 20,  max: 12, k: [5, 5], w: [0.48, 0.36, 0.14, 0.02], pow: 0,    root: 0,    needMul: false, strong: 0 },
+    { lo: 21,  hi: 35,  max: 15, k: [6, 6], w: [0.46, 0.34, 0.16, 0.04], pow: 0,    root: 0,    needMul: false, strong: 0 },
+    { lo: 36,  hi: 100, max: 20, k: [7, 7], w: [0.42, 0.32, 0.20, 0.06], pow: 0.12, root: 0.10, needMul: false, strong: 0 },
+    { lo: 101, hi: 220, max: 20, k: [8, 8], w: [0.40, 0.30, 0.24, 0.06], pow: 0.2,  root: 0.15, needMul: false, strong: 0 }
+  ];
   var PREC = { '^': 3, '*': 2, '/': 2, '+': 1, '-': 1 };
 
-  function specFor(li, n) {
+  function useNewCurve(k) {
+    var from = cfg().curveFrom;
+    return !from || !/^\d{4}-\d{2}-\d{2}$/.test(k) || k >= from;
+  }
+
+  function specFor(li, n, k) {
+    if (useNewCurve(k)) return Object.assign({}, SPEC2[li]);
     var s = Object.assign({}, SPEC[li]);
     if (n >= 1 && n <= 7) {
       var f = 0.55 + 0.065 * (n - 1);           // menys potències i arrels els primers dies
@@ -115,10 +130,11 @@
   }
 
   /* Genera molts reptes possibles per a un nivell (un per objectiu diferent) */
-  function genCandidates(rng, count, li, n, want) {
-    var S = specFor(li, n), lo = S.lo, hi = S.hi, found = {}, list = [];
+  function genCandidates(rng, count, li, n, want, k) {
+    var S = specFor(li, n, k), lo = S.lo, hi = S.hi, found = {}, list = [];
+    var maxNum = Math.max(count + 2, S.max || 20);
     for (var attempt = 0; attempt < 40000 && list.length < want; attempt++) {
-      var all = shuffle(rng, Array.from({ length: 20 }, function (_, i) { return i + 1; }));
+      var all = shuffle(rng, Array.from({ length: maxNum }, function (_, i) { return i + 1; }));
       var nums = all.slice(0, count);
 
       var useK = S.k[0] + Math.floor(rng() * (S.k[1] - S.k[0] + 1));
@@ -223,9 +239,9 @@
   function generateDay(k) {
     if (cache[k]) return cache[k];
     var c = cfg(), total = c.dailyTotal || 500;
-    var n = challengeNumber(k);
+    var n = /^\d{4}-\d{2}-\d{2}$/.test(k) ? challengeNumber(k) : 0;
     var levels = c.levelCounts.map(function (count, i) {
-      var cand = genCandidates(rngFor('combina|' + k + '|' + i), count, i, n, 1)[0];
+      var cand = genCandidates(rngFor('combina|' + k + '|' + i), count, i, n, 1, k)[0];
       if (cand) return cand;
       // Reserva (pràcticament impossible): la suma de totes les xifres
       var nums = shuffle(rngFor('combina|' + k + '|' + i + '|r'), Array.from({ length: 20 }, function (_, j) { return j + 1; })).slice(0, count);

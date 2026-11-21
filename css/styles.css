@@ -830,3 +830,126 @@ button.chip:hover { border-color: rgba(var(--gold-rgb), .55); box-shadow: 0 0 14
   .rain { display: none; }
   .step { opacity: 1; }
 }
+
+/* ---------- Jugar ara, convidats i registre ---------- */
+.btn-hero {
+  min-height: 64px; font-size: 19px; letter-spacing: .2px; background: var(--gold); color: var(--ink);
+  box-shadow: 0 12px 34px -12px rgba(var(--gold-rgb), .8), 0 0 0 1px rgba(var(--gold-rgb), .45);
+}
+.btn-hero:hover { background: #F0C670; }
+.btn-hero span { transition: transform .2s ease; }
+.btn-hero:hover span { transform: translateX(3px); }
+.entrada .cta-stack { width: 100%; max-width: 420px; margin-left: auto; margin-right: auto; }
+.btn-text {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; align-self: center;
+  padding: 8px 6px; border: 0; background: none; cursor: pointer;
+  color: var(--muted); font-size: 13.5px; line-height: 1.35; text-align: center;
+  text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 3px;
+}
+.btn-text:hover { color: var(--chalk); text-decoration-color: currentColor; }
+.btn-text svg { width: 15px; height: 15px; flex: none; }
+.btn-text.inline { display: inline-flex; padding: 4px 2px; }
+.btn-sm { min-height: 38px; padding: 0 14px; font-size: 13.5px; border-radius: 999px; gap: 8px; }
+.btn-sm svg { width: 15px; height: 15px; flex: none; }
+.chip-save { cursor: pointer; font-family: var(--sans); font-size: 12.5px; }
+.chip-save svg { width: 14px; height: 14px; }
+@media (max-width: 440px) { .chip-save span { display: none; } .chip-save { padding: 0 9px; } }
+.save-card { flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; border-color: rgba(var(--gold-rgb), .35); }
+.save-card p { flex: 1 1 200px; color: var(--muted); line-height: 1.45; }
+.nudge-line { margin-top: 14px; text-align: center; font-size: 13.5px; color: var(--muted); }
+
+/* ---------- Reptes entre amics ---------- */
+.challenge {
+  display: flex; align-items: center; gap: 14px; padding: 14px 16px; flex-wrap: wrap;
+  border-color: rgba(var(--gold-rgb), .45); background: rgba(var(--gold-rgb), .07);
+}
+.challenge p { flex: 1 1 180px; font-size: 14.5px; line-height: 1.45; }
+.challenge small { display: block; margin-top: 2px; font-size: 12.5px; color: var(--muted); }
+.avui .challenge { margin-bottom: 14px; }
+.res-grid .challenge { margin-bottom: 14px; }
+
+/* ---------- Rànquing: tothom / amics ---------- */
+.scope { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.seg { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+.seg button { height: 32px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font-size: 13px; font-weight: 500; cursor: pointer; }
+.seg button.on { background: var(--surface-2); color: var(--chalk); box-shadow: inset 0 0 0 1px var(--line-2); }
+.center-notice { align-items: center; text-align: center; }
+
+/* ---------- Avatars i perfil ---------- */
+.ring.av { font-family: var(--serif); font-size: 18px; font-weight: 500; }
+.ring.lg { width: 52px; height: 52px; font-size: 15px; }
+.ring.av.lg { font-size: 27px; }
+.av-glyph { font-family: var(--serif); font-size: 19px; line-height: 1; }
+.prof-head { display: flex; align-items: center; gap: 14px; }
+.prof-head b { display: block; font-size: 17px; }
+.prof-head small { display: block; font-size: 12.5px; color: var(--muted); }
+.field { display: flex; flex-direction: column; gap: 8px; }
+.field input {
+  height: 46px; padding: 0 14px; border: 1px solid var(--line-2); border-radius: 12px;
+  background: var(--surface); color: var(--chalk); font-family: var(--sans); font-size: 16px;
+}
+.field input:focus { outline: none; border-color: var(--gold); }
+.av-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+.av-grid button {
+  aspect-ratio: 1; border: 1px solid var(--line-2); border-radius: 12px; background: var(--surface);
+  color: var(--chalk); font-family: var(--serif); font-size: 21px; cursor: pointer;
+}
+.av-grid button.on { border-color: var(--gold); background: rgba(var(--gold-rgb), .14); color: var(--gold-t); }
+.av-colors { display: flex; gap: 12px; }
+.av-colors button { width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--ink); box-shadow: 0 0 0 1px var(--line-2); cursor: pointer; }
+.av-colors button.on { box-shadow: 0 0 0 2px var(--chalk); }
+.chip { white-space: nowrap; }
+@media (max-width: 440px) { .topbar-right { gap: 6px; } .topbar .chip { padding: 0 9px; } }
+@media (max-width: 360px) { .topbar .wordmark { font-size: 22px; } }
+
+/* ---------- Expressió: parèntesis per tancar ---------- */
+.ghost-paren { color: var(--faint); opacity: .55; margin-left: 2px; letter-spacing: 2px; }
+.pill.warn { box-shadow: inset 0 0 0 1px rgba(var(--gold-rgb), .55); }
+
+/* ---------- Mode aula ---------- */
+.aula-link { margin: -2px auto 0; display: flex; font-size: 12.5px; }
+.timer.off { display: flex; align-items: center; justify-content: center; border: 1.5px dashed var(--line-2); border-radius: 50%; }
+.timer.off span { position: static; font-family: var(--serif); font-size: 24px; color: var(--muted); }
+.aula-list li { list-style: none; }
+.aula-row { width: 100%; background: none; border: 0; border-bottom: 1px solid #222832; text-align: left; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
+.aula-row > span:first-child { color: var(--chalk); font-weight: 600; }
+.aula-list li:last-child .aula-row { border-bottom: 0; }
+.aula-row:hover > span:first-child { color: var(--gold-t); }
+.aula { display: flex; flex-direction: column; gap: 14px; }
+.day-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.day-chip { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 58px; padding: 8px 10px; border: 1px solid var(--line-2); border-radius: 12px; background: var(--surface); color: var(--chalk); font-family: var(--mono); font-size: 13px; cursor: pointer; }
+.day-chip small { font-size: 10.5px; color: var(--muted); }
+.day-chip.on { border-color: var(--gold); }
+
+/* ---------- Estadístiques i instal·lació ---------- */
+.stats-card { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.streak-line { font-size: 15px; color: var(--muted); }
+.streak-line b { color: var(--chalk); }
+.stat-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.stat-cell { display: flex; flex-direction: column; gap: 2px; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+.stat-cell b { font-family: var(--mono); font-size: 19px; color: var(--chalk); font-variant-numeric: tabular-nums; }
+.stat-cell span { font-size: 11.5px; color: var(--muted); line-height: 1.3; }
+.next-card { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.next-card .countdown-row { padding-top: 10px; }
+.btn-install { min-height: 46px; font-size: 14.5px; }
+.ios-steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 10px; color: var(--muted); line-height: 1.5; }
+.ios-steps b { color: var(--chalk); }
+.ios-steps svg { vertical-align: -3px; color: var(--gold); }
+
+/* ---------- Portada: «Juga ara» sempre visible en mòbils petits ---------- */
+@media (max-height: 760px) {
+  .entrada { padding-top: max(18px, env(safe-area-inset-top)); }
+  .hero-demo { margin-top: 10px; gap: 8px; }
+  .mini-tile { width: 38px; height: 44px; font-size: 17px; }
+  .ops-line { font-size: 18px; }
+  .hero-target { font-size: 64px; margin-top: -4px; }
+  .hero-target b { font-size: 32px; }
+  .hero-title { font-size: 27px; margin-top: 4px; }
+  .entrada .lead { font-size: 14px; }
+  .entrada .cta-stack { padding-top: 10px; gap: 8px; }
+  .entrada .challenge { padding: 10px 12px; }
+  .entrada .ring.lg { width: 40px; height: 40px; }
+}
+@media (max-height: 640px) {
+  .entrada .ops-line, .entrada .lead { display: none; }
+}

@@ -22,16 +22,48 @@
     s.ach = s.ach || {};                  // segells: id → dia
     s.milestones = s.milestones || {};    // fites de ratxa: dies → dia
     s.bestStreak = s.bestStreak || 0;
+    s.friends = s.friends || {};          // amics (uid → dia que es van afegir), per al rànquing d'amics
     return s;
   }
   const store = load();
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) { /* ignora */ } }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) { /* ignora */ }
+    // Amb sessió iniciada, el progrés també es desa al núvol (agrupant canvis)
+    if (cloud.ready && B.user) { clearTimeout(cloud.timer); cloud.timer = setTimeout(pushCloud, 1500); }
+  }
+
+  /* ================= Progrés al núvol ================= */
+  const cloud = { ready: false, timer: null };
+  function pushCloud() {
+    if (!cloud.ready || !B.user) return;
+    const o = JSON.parse(JSON.stringify(store));
+    // Dels dies passats no cal guardar les expressions, només els punts
+    Object.keys(o.days).forEach(k => { if (k !== P.dayKey()) (o.days[k].levels || []).forEach(l => { if (l) delete l.tokens; }); });
+    delete o.sound; delete o.challenge;
+    B.pushSave(o).catch(e => console.warn('No s’ha pogut desar el progrés al núvol', e));
+  }
+  // Combina el progrés del núvol amb el d'aquest navegador (sense perdre res de cap dels dos)
+  function mergeStore(r) {
+    if (!r || !r.days) return false;
+    const weight = d => d ? (d.finished ? 1e6 : 0) + (d.levels || []).filter(l => l && l.done).length * 1000 + (d.total || 0) : -1;
+    Object.keys(r.days).forEach(k => { if (weight(r.days[k]) > weight(store.days[k])) store.days[k] = r.days[k]; });
+    ['ach', 'milestones'].forEach(f => Object.keys(r[f] || {}).forEach(id => {
+      if (!store[f][id] || r[f][id] < store[f][id]) store[f][id] = r[f][id];
+    }));
+    Object.assign(store.frozen, r.frozen || {});
+    Object.keys(r.friends || {}).forEach(u => { if (!store.friends[u]) store.friends[u] = r.friends[u]; });
+    store.freezes = Math.min(2, Math.max(store.freezes, r.freezes || 0));
+    store.bestStreak = Math.max(store.bestStreak, r.bestStreak || 0);
+    store.seenHelp = store.seenHelp || !!r.seenHelp;
+    if (r.lastFreezeDay && !(store.lastFreezeDay >= r.lastFreezeDay)) store.lastFreezeDay = r.lastFreezeDay;
+    return true;
+  }
 
   /* ================= Estat ================= */
   const TUT = { count: 3, nums: [2, 3, 4], target: 10, solution: '3 * 4 - 2' };
   const state = {
     screen: null, dayKey: P.dayKey(), puzzle: null, level: 0,
-    user: null, rankTab: 'day', ticker: null,
+    user: null, rankTab: 'day', rankScope: 'all', ticker: null, reward: null,
     digitBuf: '', digitTimer: null,
     tut: { tokens: [], startAt: 1, done: false }, tutResult: null,
     celebrations: []
@@ -39,6 +71,7 @@
   state.puzzle = P.generateDay(state.dayKey);
 
   function day(k) {
+    if (!k && state.practice) return state.practice.day;     // mode aula: partida a part, no es desa
     k = k || state.dayKey;
     return store.days[k] || (store.days[k] = { levels: [], finished: false, total: 0, submitted: false });
   }
@@ -129,6 +162,10 @@
   function onDayFinished() {
     const d = day(), total = totalOf(d);
     const s = streak();
+    // Moment de recompensa: primer repte o rècord personal (per proposar iniciar la sessió)
+    const prevBest = Object.keys(store.days).filter(k => k !== state.dayKey && store.days[k].finished)
+      .reduce((m, k) => Math.max(m, store.days[k].total), -1);
+    state.reward = { first: prevBest < 0, record: prevBest >= 0 && total > prevBest, total };
     store.bestStreak = Math.max(store.bestStreak, s);
     // Els avisos del final del dia es mostren com a targetes al resultat
     state.quiet = true;
@@ -157,6 +194,20 @@
   /* ================= Utilitats ================= */
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const initials = name => String(name || '?').trim().split(/\s+/).map(w => w.charAt(0)).slice(0, 2).join('').toUpperCase();
+
+  /* Avatars: un símbol matemàtic i el color d'un dels savis, desats com «símbol.color» (p. ex. «3.4») */
+  const AV_GLYPHS = ['π', 'Σ', '√', '∞', 'φ', 'Δ', '∫', '≈', 'λ', 'Ω', 'e', '∂'];
+  function parseAv(a) {
+    const m = /^(\d{1,2})\.(\d)$/.exec(a || '');
+    const g = m && AV_GLYPHS[+m[1]], c = m && SV.list[+m[2]];
+    return g && c ? { g, c, gi: +m[1], ci: +m[2] } : null;
+  }
+  // Cercle amb l'avatar (o les inicials) d'un jugador
+  function ringHTML(name, avatar, extra, style) {
+    const av = parseAv(avatar);
+    if (av) return `<span class="ring av ${extra || ''}" style="color:${av.c.color};${style || `border-color:${av.c.color}`}">${av.g}</span>`;
+    return `<span class="ring ${extra || ''}" style="${style || ''}">${esc(initials(name))}</span>`;
+  }
 
   function fmtCountdown() {
     const s = Math.floor(P.msToReset() / 1000);
@@ -200,6 +251,7 @@
     rank: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M5 20V12M12 20V5M19 20v-5"/></svg>',
     trophy: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 20h8"/></svg>',
     sages: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 6l5.2 9H6.8z"/></svg>',
+    phone: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M12 8v6M9 11l3 3 3-3"/></svg>',
     help: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01"/></svg>',
     google: '<svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.730-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>'
   };
@@ -224,6 +276,7 @@
   /* ================= Navegació ================= */
   function go(screen) {
     if (screen !== 'joc') stopTicker();
+    if (state.practice && ['joc', 'correccio', 'aula'].indexOf(screen) < 0) exitPractice();
     state.screen = screen;
     render();
     window.scrollTo(0, 0);
@@ -254,12 +307,16 @@
   }
 
   function header() {
-    const u = state.user, s = streak();
-    const who = u ? (u.photo ? `<img src="${esc(u.photo)}" alt="" referrerpolicy="no-referrer">` : esc(initials(u.name))) : 'Tu';
+    const u = state.user, s = streak(), av = u && parseAv(u.avatar);
+    const who = av ? `<span class="av-glyph" style="color:${av.c.color}">${av.g}</span>`
+      : u ? (u.photo ? `<img src="${esc(u.photo)}" alt="" referrerpolicy="no-referrer">` : esc(initials(u.name))) : 'Tu';
     const fr = store.freezes ? `<span class="chip-sep"></span>${ICON.shield}${store.freezes}` : '';
+    // Convidat: accés discret per guardar el progrés amb Google
+    const saveBtn = B.enabled && !u ? `<button type="button" class="chip chip-save" data-action="signin" title="Inicia sessió amb Google per guardar el progrés">${ICON.google}<span>Guarda el progrés</span></button>` : '';
     return `<header class="topbar">
       ${wordmark}
       <div class="topbar-right">
+        ${saveBtn}
         <button type="button" class="chip chip-sound${store.sound === false ? ' off' : ''}" data-action="sound" aria-label="${store.sound === false ? 'Activa el so' : 'Silencia el so'}" title="${store.sound === false ? 'So desactivat' : 'So activat'}">${store.sound === false ? ICON.soundOff : ICON.soundOn}</button>
         <button type="button" class="chip" data-go="vitrina" title="Ratxa de dies seguits${store.freezes ? ' i comodins' : ''}">${ICON.flame}${s} ${s === 1 ? 'dia' : 'dies'}${fr}</button>
         <button type="button" class="avatar" data-action="profile" aria-label="Perfil i sessió">${who}</button>
@@ -307,11 +364,122 @@
       <h1 class="hero-title">Cinc nivells.<br><em>Un repte cada dia.</em></h1>
       <p class="lead">Combina les xifres combinant operacions per arribar a l'objectiu de cada nivell abans que s'acabi el temps.</p>
       <div class="cta-stack">
-        ${B.enabled ? `<button type="button" class="btn btn-primary" data-action="signin">${ICON.google}Continua amb Google</button>` : ''}
-        <button type="button" class="btn ${B.enabled ? 'btn-ghost' : 'btn-primary'}" data-action="guest">${B.enabled ? 'Juga com a convidat' : 'Comença a jugar'}</button>
+        ${challengeCard()}
+        <button type="button" class="btn btn-hero" data-action="guest">Juga ara <span aria-hidden="true">→</span></button>
+        ${B.enabled ? `<button type="button" class="btn-text" data-action="signin">${ICON.google}<span>o inicia sessió amb Google per guardar el progrés</span></button>` : ''}
         <div class="countdown-row"><span class="kicker">Nou repte en</span><span class="countdown big" data-countdown></span></div>
       </div>
     </section>`;
+  }
+
+  /* ================= Reptes entre amics ================= */
+  // Enllaç: ?r=<dia>&de=<uid> (amb sessió) o ?r=<dia>&p=<punts> (convidat)
+  function readChallenge() {
+    let q;
+    try { q = new URLSearchParams(location.search); } catch (e) { return; }
+    const d = q.get('r');
+    if (!d || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return;
+    const uid = q.get('de'), p = q.get('p');
+    const ch = { day: d, uid: uid && /^[A-Za-z0-9]{10,40}$/.test(uid) ? uid : null,
+      total: p != null && /^\d{1,4}$/.test(p) ? +p : null, name: '', avatar: '' };
+    store.challenge = ch;
+    if (ch.uid && !store.friends[ch.uid] && Object.keys(store.friends).length < 60) store.friends[ch.uid] = d;
+    save();
+    try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) { /* ignora */ }
+    track('repte-amic-obert', 'Enllaç de repte obert');
+  }
+
+  // Completa el nom, l'avatar i la puntuació de qui ha enviat el repte
+  function loadChallenger() {
+    const ch = store.challenge;
+    if (!ch || !ch.uid || !B.enabled) return;
+    Promise.all([B.scoreOf(ch.day, ch.uid).catch(() => null), B.player(ch.uid).catch(() => null)]).then(([s, pl]) => {
+      if (store.challenge !== ch) return;
+      ch.name = (pl && pl.name) || (s && s.name) || '';
+      ch.avatar = (pl && pl.avatar) || (s && s.avatar) || '';
+      if (s) ch.total = s.total;
+      save();
+      if (['entrada', 'avui', 'resultat'].indexOf(state.screen) >= 0) render();
+    });
+  }
+
+  function activeChallenge() {
+    const ch = store.challenge;
+    if (!ch || ch.day < P.addDays(state.dayKey, -1)) return null;          // només d'avui o d'ahir
+    if (state.user && ch.uid === state.user.uid) return null;               // el teu propi enllaç
+    return ch;
+  }
+
+  function challengeCard() {
+    const ch = activeChallenge();
+    if (!ch) return '';
+    const who = `<b class="chalk">${esc(ch.name || 'Un amic')}</b>`;
+    const today = ch.day === state.dayKey, pts = ch.total != null ? `<b class="gold">${ch.total} punts</b>` : '';
+    let msg;
+    if (today && pts) msg = `${who} et repta: ha fet ${pts} al repte d'avui.<small>Pots superar-ho?</small>`;
+    else if (today) msg = `${who} et repta al repte d'avui.<small>A veure qui fa més punts!</small>`;
+    else msg = `${who} ${pts ? 'va fer ' + pts + ' ahir' : 't’ha reptat'}.<small>Avui hi ha un repte nou: a veure qui en fa més!</small>`;
+    return `<div class="card challenge">${ringHTML(ch.name || '?', ch.avatar, 'lg')}<p>${msg}</p></div>`;
+  }
+
+  // Al resultat: comparació amb qui t'ha reptat
+  function challengeResult(total) {
+    const ch = activeChallenge();
+    if (!ch || ch.day !== state.dayKey || ch.total == null) return '';
+    const name = esc(ch.name || 'el teu amic'), diff = total - ch.total;
+    const msg = diff > 0 ? `Has guanyat a <b class="chalk">${name}</b> per <b class="gold">${diff}</b> punts!`
+      : diff === 0 ? `Empat amb <b class="chalk">${name}</b>: ${total} a ${ch.total}.`
+      : `<b class="chalk">${name}</b> t'ha guanyat per <b class="gold">${-diff}</b> punts. Demà, la revenja!`;
+    return `<div class="card challenge">${ringHTML(ch.name || '?', ch.avatar, 'lg')}<p>${msg}<small>Tu ${total} · ${name} ${ch.total}</small></p>
+      <button type="button" class="btn btn-ghost btn-sm" data-action="challenge">${ICON.share}Repta-li</button></div>`;
+  }
+
+  function challengeURL() {
+    const d = day(), p = new URLSearchParams({ r: state.dayKey });
+    if (state.user) p.set('de', state.user.uid);
+    else if (d.finished) p.set('p', String(totalOf(d)));
+    return location.origin + location.pathname + '?' + p.toString();
+  }
+
+  function shareOut(text, url, copied) {
+    if (navigator.share) navigator.share({ title: 'combina ≈', text: text, url: url }).catch(() => {});
+    else if (navigator.clipboard) navigator.clipboard.writeText(text + '\n' + url).then(() => toast(copied), () => toast(url));
+    else toast(url);
+  }
+
+  function challenge() {
+    const d = day(), n = state.puzzle.number;
+    const text = d.finished ? `He fet ${totalOf(d)} punts al repte nº ${n} de combina ≈. Em pots superar?`
+      : `T'atreveixes amb el repte nº ${n} de combina ≈? Cinc nivells de càlcul, un repte cada dia.`;
+    track('repte-amic-enviat', 'Repte a un amic');
+    shareOut(text, challengeURL(), 'Enllaç de repte copiat. Envia’l a qui vulguis!');
+  }
+
+  /* ================= Iniciar la sessió en el moment de recompensa ================= */
+  function signinModal(kicker, total) {
+    openModal(`${kicker ? `<p class="kicker gold">${esc(kicker)}</p>` : ''}
+      <h2 class="title sm">${total != null ? `Has fet ${total} punts!` : 'Bona partida!'}</h2>
+      <p class="lead">Guarda la teva ratxa i entra al rànquing amb Google, en un clic.</p>
+      <button type="button" class="btn btn-primary" data-action="signin">${ICON.google}Continua amb Google</button>
+      <button type="button" class="btn-text" data-action="close-modal">Ara no</button>`);
+  }
+
+  function maybeAskSignin() {
+    const r = state.reward;
+    state.reward = null;
+    // Un cop al dia, en acabar el repte (el moment de màxima recompensa)
+    if (!r || !B.enabled || state.user || store.askedDay === state.dayKey) return;
+    store.askedDay = state.dayKey; save();
+    const kicker = r.record ? 'Rècord personal' : r.first ? 'Primer repte completat'
+      : state.celebrations.length ? state.celebrations[0].title : 'Repte nº ' + state.puzzle.number + ' completat';
+    setTimeout(() => { if (state.screen === 'resultat' && modalEl.hidden && !state.user) signinModal(kicker, r.total); }, reduceMotion ? 300 : 1400);
+  }
+
+  // Targeta fixa per als convidats (resultat i rànquing)
+  function saveCard(text) {
+    if (!B.enabled || state.user) return '';
+    return `<div class="card notice save-card"><p class="small">${text}</p>
+      <button type="button" class="btn btn-primary btn-sm" data-action="signin">${ICON.google}Continua amb Google</button></div>`;
   }
 
   /* ================= Pantalla: tutorial jugable ================= */
@@ -377,6 +545,7 @@
     const pts = E.points(TUT.target, r.v, E.tilesUsed(state.tut.tokens), TUT.count);
     if (E.distance(TUT.target, r.v) === 0) {
       state.tutResult = { exact: true, points: pts };
+      track('tutorial_completat', 'Tutorial completat');
       store.seenHelp = true; save();
       render();
     } else {
@@ -423,9 +592,11 @@
         <div>
           <p class="kicker">${esc(P.prettyDay(state.dayKey))} · Repte nº ${pz.number}</p>
           <h1 class="title">Cada segon compta.<br><em class="muted-em">Infinites combinacions.</em></h1>
+          ${d.finished ? '' : challengeCard()}
           <ol class="card lvl-list" aria-label="Nivells d'avui">${rows}</ol>
           ${cta}
           <p class="countdown-line">Nou repte en <span class="countdown gold" data-countdown></span></p>
+          <button type="button" class="btn-text aula-link" data-go="aula">Mode aula · sense temps</button>
         </div>
         <div class="side-col">
           <section class="card yesterday" aria-label="Ahir i la teva setmana">${yesterday}</section>
@@ -480,13 +651,14 @@
       const cls = k === i ? 'cur' : s && s.done ? (s.exact ? 'exact' : 'done') : '';
       return `<span class="${cls}"></span>`;
     }).join('');
+    const pr = !!state.practice;
     const head = `<header class="game-head">
-      <button type="button" class="icon-btn" data-go="avui" aria-label="Surt (el temps continua corrent)">${ICON.close}</button>
-      <div class="game-progress"><p class="kicker">Nivell ${i + 1} de 5 · ${secsFor(i)} s</p><div class="segs" aria-hidden="true">${progress}</div></div>
-      <div class="timer" role="timer" aria-label="Temps restant">
+      <button type="button" class="icon-btn" data-go="${pr ? 'aula' : 'avui'}" aria-label="${pr ? 'Torna al mode aula' : 'Surt (el temps continua corrent)'}">${ICON.close}</button>
+      <div class="game-progress"><p class="kicker">${pr ? 'Mode aula · nivell ' + (i + 1) + ' · sense temps' : 'Nivell ' + (i + 1) + ' de 5 · ' + secsFor(i) + ' s'}</p><div class="segs" aria-hidden="true">${progress}</div></div>
+      ${pr ? '<div class="timer off" aria-hidden="true"><span>∞</span></div>' : `<div class="timer" role="timer" aria-label="Temps restant">
         <svg viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="22" class="ring-bg"/><circle cx="26" cy="26" r="22" class="ring" id="ring"/></svg>
         <span id="timer-num">${secsFor(i)}</span>
-      </div>
+      </div>`}
     </header>`;
 
     if (!st || !st.startAt) {
@@ -494,10 +666,10 @@
         ${head}
         <div class="intro">
           <p class="kicker">Nivell ${i + 1}</p>
-          <p class="intro-big">${L.count} xifres<br><em>${secsFor(i)} segons</em></p>
+          <p class="intro-big">${L.count} xifres<br><em>${pr ? 'sense rellotge' : secsFor(i) + ' segons'}</em></p>
           <div class="intro-tiles" aria-hidden="true">${Array.from({ length: L.count }, () => '<span>?</span>').join('')}</div>
-          <p class="lead center">Quan premis el botó, apareixeran l'objectiu i les xifres i començarà el temps.</p>
-          <button type="button" class="btn btn-primary" data-action="start">Comença el nivell ${i + 1}</button>
+          <p class="lead center">${pr ? 'Mode aula: pensa amb calma, no compta per al rànquing ni per a la ratxa.' : 'Quan premis el botó, apareixeran l\'objectiu i les xifres i començarà el temps.'}</p>
+          <button type="button" class="btn btn-primary" data-action="start">${pr ? 'Mostra' : 'Comença'} el nivell ${i + 1}</button>
         </div>
       </section>`;
     }
@@ -518,7 +690,13 @@
 
   function afterJocRender() {
     const st = day().levels[state.level];
-    if (st && st.startAt && !st.done) { updateGame(); startTicker(); }
+    if (st && st.startAt && !st.done) { updateGame(); if (!state.practice) startTicker(); }
+  }
+
+  // Vibració tàctil suau (mòbils Android); se silencia amb el mateix botó que el so
+  function buzz(p) {
+    if (store.sound === false || !navigator.vibrate) return;
+    try { navigator.vibrate(p); } catch (e) { /* sense vibració */ }
   }
 
   function updateGame() {
@@ -526,7 +704,10 @@
     if (!st) return;
     const ex = document.getElementById('expr');
     if (!ex) return;
-    ex.innerHTML = (st.tokens.length ? E.toHTML(st.tokens) : '<span class="placeholder">Toca una xifra per començar</span>') + '<span class="caret"></span>';
+    // Parèntesis oberts: es mostren en gris on es tancaran (Valida els tanca automàticament)
+    const open = E.openCount(st.tokens);
+    ex.innerHTML = (st.tokens.length ? E.toHTML(st.tokens) : '<span class="placeholder">Toca una xifra per començar</span>') + '<span class="caret"></span>' +
+      (open > 0 ? `<span class="ghost-paren" title="Parèntesis per tancar">${')'.repeat(open)}</span>` : '');
     const a = E.allowed(st.tokens), used = E.usedTiles(st.tokens);
     view.querySelectorAll('.tile').forEach(b => {
       const k = +b.dataset.tile;
@@ -542,8 +723,9 @@
     if (r.ok) {
       const d = E.distance(L.target, r.v), pts = E.points(L.target, r.v, E.tilesUsed(st.tokens), L.count);
       lv.textContent = '= ' + E.fmt(r.v);
-      lp.textContent = d === 0 ? 'Exacte! · ' + pts + ' punts' : 'a ' + E.fmt(d) + ' · ara ' + pts + ' punts';
-      lp.className = 'pill' + (d === 0 ? ' exact' : '');
+      lp.textContent = (d === 0 ? 'Exacte! · ' + pts + ' punts' : 'a ' + E.fmt(d) + ' · ara ' + pts + ' punts') +
+        (open > 0 ? ` · falta${open > 1 ? 'n' : ''} ${open} )` : '');
+      lp.className = 'pill' + (d === 0 ? ' exact' : '') + (open > 0 ? ' warn' : '');
       sb.disabled = false;
     } else {
       lv.innerHTML = '&nbsp;';
@@ -586,7 +768,7 @@
   function startLevel() {
     const d = day(), i = state.level;
     if (d.levels[i] && d.levels[i].startAt) return;
-    if (i === 0) track('repte-comencat', 'Repte començat');
+    if (i === 0 && !state.practice) track('repte-comencat', 'Repte començat');
     d.levels[i] = { tokens: [], startAt: Date.now(), done: false };
     save();
     render();
@@ -608,6 +790,9 @@
     else { st.value = null; st.points = 0; st.err = r.empty ? 'No hi havia cap expressió' : r.err; }
     d.total = totalOf(d);
     state.celebrations = [];
+    // Mode aula: no hi ha segells, ratxa ni rànquing
+    if (state.practice) return go('correccio');
+    track('nivell_' + (i + 1) + '_acabat', 'Nivell ' + (i + 1) + ' acabat');
     onLevelDone(i, st, L);
     if (doneCount(d) === state.puzzle.levels.length) { d.finished = true; onDayFinished(); submitDay(); track('repte-acabat', 'Repte acabat'); }
     save();
@@ -633,6 +818,7 @@
         return finishLevel(false);
     }
     if (!ok) return nudge();
+    buzz(8);
     if (!c.tut) save();
     updateGame();
   }
@@ -642,11 +828,13 @@
     if (!st || st.done || !st.startAt) return;
     if (!E.allowed(st.tokens).num || E.usedTiles(st.tokens)[k]) return nudge();
     st.tokens.push({ t: 'num', v: c.L.nums[k], i: k });
+    buzz(15);
     if (!c.tut) save();
     updateGame();
   }
 
   function nudge() {
+    buzz([20, 40, 20]);
     const ex = document.querySelector('.expr-card');
     if (!ex) return;
     ex.classList.remove('nudge'); void ex.offsetWidth; ex.classList.add('nudge');
@@ -706,10 +894,18 @@
       </details>
       <div class="cta-row">
         <button type="button" class="btn btn-ghost" data-action="replay">Torna-ho a veure</button>
-        ${last ? '<button type="button" class="btn btn-primary" data-go="resultat">Resultat del dia →</button>'
+        ${last ? (state.practice ? '<button type="button" class="btn btn-primary" data-go="aula">Torna a l’aula →</button>' : '<button type="button" class="btn btn-primary" data-go="resultat">Resultat del dia →</button>')
               : `<button type="button" class="btn btn-primary" data-action="next">Nivell ${i + 2} →</button>`}
       </div>
+      ${firstLevelNudge(i, st)}
     </section>`;
+  }
+
+  // Primer nivell superat d'un convidat que encara no ha completat cap dia: recordatori discret
+  function firstLevelNudge(i, st) {
+    if (!B.enabled || state.user || state.practice || i !== 0 || !(st.points > 0)) return '';
+    if (Object.keys(store.days).some(k => store.days[k].finished)) return '';
+    return `<p class="nudge-line step" style="--d:1.2s">Bon començament! <button type="button" class="btn-text inline" data-action="signin">${ICON.google}<span>Guarda el progrés amb Google</span></button></p>`;
   }
 
   /* ================= Paraules dels savis ================= */
@@ -849,6 +1045,7 @@
       fill.classList.add('complete');
       const rr = view.querySelector('.rank-reveal');
       if (rr) rr.classList.add('show');
+      maybeAskSignin();
     };
     // Un sol recorregut continu, a velocitat constant, de 0 al total
     const dur = Math.min(4200, 1600 + total * 2.6);
@@ -899,15 +1096,21 @@
           </div>
         </div>
         <div>
+          ${challengeResult(total)}
           ${cel}
           <section class="card bars" aria-label="Punts per nivell">${bars}
             <p class="muted small">${ex ? ex + (ex === 1 ? ' resultat exacte (en or).' : ' resultats exactes (en or).') : 'Cap resultat exacte avui.'} Ratxa: <b class="chalk">${s} ${s === 1 ? 'dia' : 'dies'}</b>.</p>
           </section>
+          ${saveCard('<b class="chalk">Guarda aquesta partida.</b> Inicia sessió per no perdre la ratxa i els segells, i per aparèixer al rànquing.')}
           <div class="cta-row">
-            <button type="button" class="btn btn-ghost" data-action="share">${ICON.share}Comparteix</button>
+            <button type="button" class="btn btn-ghost" data-action="share">${ICON.share}Repta un amic</button>
             <button type="button" class="btn btn-primary" data-go="ranquing">Rànquing →</button>
           </div>
-          <div class="countdown-row"><span class="kicker">Nou repte en</span><span class="countdown big" data-countdown></span></div>
+          <div class="next-card">
+            <div class="countdown-row"><span class="kicker">Nou repte en</span><span class="countdown big" data-countdown></span></div>
+            <p class="muted small center">Cada dia a les 9:00 h, cinc nivells nous. No perdis la ratxa!</p>
+            ${installBtn()}
+          </div>
         </div>
       </div>
     </section>`;
@@ -915,12 +1118,15 @@
 
   function share() {
     const d = day(), total = totalOf(d), r = SV.rankFor(total);
-    const marks = state.puzzle.levels.map((L, i) => { const st = d.levels[i]; return st && st.points >= LEVEL_MAX ? '■' : st && st.points >= LEVEL_MAX / 2 ? '▣' : '□'; }).join('');
-    const text = `combina ≈ · repte nº ${state.puzzle.number}\n${marks}  ${total}/${maxTotal()} · ${r.name} · ratxa ${streak()}`;
-    const url = location.href.split('#')[0];
-    if (navigator.share) navigator.share({ title: 'combina ≈', text: text, url: url }).catch(() => {});
-    else if (navigator.clipboard) navigator.clipboard.writeText(text + '\n' + url).then(() => toast('Resultat copiat. Enganxa’l on vulguis!'), () => toast(text));
-    else toast(text);
+    // 🟡 perfecte (100) · 🟢 70 o més · 🟠 30–69 · 🔴 menys de 30
+    const marks = state.puzzle.levels.map((L, i) => {
+      const p = d.levels[i] ? d.levels[i].points : 0;
+      return p >= LEVEL_MAX ? '🟡' : p >= LEVEL_MAX * 0.7 ? '🟢' : p >= LEVEL_MAX * 0.3 ? '🟠' : '🔴';
+    }).join('');
+    const s = streak();
+    const text = `combina ≈ · repte nº ${state.puzzle.number}\n${marks}\n${total}/${maxTotal()} punts · rang ${r.name}${s > 1 ? ` · ratxa ${s} dies 🔥` : ''}\nEm pots superar?`;
+    track('resultat_compartit', 'Resultat compartit');
+    shareOut(text, challengeURL(), 'Resultat i enllaç de repte copiats. Enganxa’ls on vulguis!');
   }
 
   /* ================= Pantalla: vitrina ================= */
@@ -941,7 +1147,9 @@
       <h1 class="title">Vitrina</h1>
       <div class="vitrina-grid">
         <div class="v-col">
+          ${statsCard()}
           ${streakCard(false)}
+          ${installBtn()}
           <section class="card coll-card" aria-label="Medalles aconseguides">
             <div class="coll-head"><p class="kicker">Medalles</p><p class="muted small">${played} ${played === 1 ? 'repte completat' : 'reptes completats'} · millor ratxa ${store.bestStreak}</p></div>
             <div class="coll-row">${medals}</div>
@@ -975,7 +1183,13 @@
         <div class="card stat"><span class="kicker">Millor dia</span><b>${best || '—'}</b></div>
       </div>`;
     } else {
-      body = `${!state.user ? `<div class="card notice"><p class="muted small">Entra amb Google per aparèixer al rànquing.</p><button type="button" class="btn btn-primary" data-action="signin">${ICON.google}Continua amb Google</button></div>` : ''}
+      const nf = friendUids().length;
+      const seg = (id, label) => `<button type="button" class="${state.rankScope === id ? 'on' : ''}" data-scope="${id}" aria-pressed="${state.rankScope === id}">${label}</button>`;
+      body = `<div class="scope">
+          <div class="seg" role="group" aria-label="Qui surt al rànquing">${seg('all', 'Tothom')}${seg('friends', 'Amics' + (nf ? ' · ' + nf : ''))}</div>
+          <button type="button" class="btn btn-ghost btn-sm" data-action="challenge">${ICON.share}Repta un amic</button>
+        </div>
+        ${saveCard('Inicia sessió amb Google per aparèixer al rànquing i no perdre el teu progrés.')}
         <div id="rank-body"><p class="muted center pad">Carregant…</p></div>`;
     }
     return `<section class="screen ranquing">
@@ -987,15 +1201,33 @@
     </section>`;
   }
 
+  // Amics: qui t'ha enviat un enllaç de repte (i tu mateix, si has iniciat la sessió)
+  function friendUids() {
+    const me = state.user && state.user.uid;
+    return Object.keys(store.friends).filter(u => u !== me);
+  }
+
   function loadRanking() {
     if (!B.enabled) return;
-    const tab = state.rankTab;
+    const tab = state.rankTab, scope = state.rankScope;
+    let uids;
+    if (scope === 'friends') {
+      uids = friendUids();
+      if (!uids.length) {
+        const box = document.getElementById('rank-body');
+        if (box) box.innerHTML = `<div class="card notice center-notice"><p><b>Encara no tens amics al rànquing.</b></p>
+          <p class="muted small">Envia el teu enllaç de repte: quan un amic l'obri, us podreu comparar aquí. Demana-li que te n'enviï un a tu també!</p>
+          <button type="button" class="btn btn-primary btn-sm" data-action="challenge">${ICON.share}Repta un amic</button></div>`;
+        return;
+      }
+      if (state.user) uids = uids.concat(state.user.uid);
+    }
     let p;
-    if (tab === 'day') p = B.day(state.dayKey);
-    else if (tab === 'week') p = B.week(Array.from({ length: 7 }, (_, i) => P.addDays(state.dayKey, -i)));
-    else p = B.total();
+    if (tab === 'day') p = B.day(state.dayKey, uids);
+    else if (tab === 'week') p = B.week(Array.from({ length: 7 }, (_, i) => P.addDays(state.dayKey, -i)), uids);
+    else p = B.total(uids);
     p.then(rows => {
-      if (state.screen !== 'ranquing' || state.rankTab !== tab) return;
+      if (state.screen !== 'ranquing' || state.rankTab !== tab || state.rankScope !== scope) return;
       const box = document.getElementById('rank-body');
       if (box) box.innerHTML = rankHTML(rows, tab);
     }).catch(err => {
@@ -1005,7 +1237,9 @@
   }
 
   function rankHTML(rows, tab) {
-    if (!rows.length) return '<p class="muted center pad">Encara no hi ha cap puntuació. Sigues el primer!</p>';
+    if (!rows.length) return state.rankScope === 'friends'
+      ? '<p class="muted center pad">Els teus amics encara no hi tenen cap puntuació.</p>'
+      : '<p class="muted center pad">Encara no hi ha cap puntuació. Sigues el primer!</p>';
     let dist = '';
     if (tab === 'day') {
       const counts = SV.list.map(s => rows.filter(r => SV.rankFor(r.total).key === s.key).length);
@@ -1020,7 +1254,7 @@
       const sub = tab === 'day' ? `${s.name} · ${r.exact || 0} exactes` : `${r.days || 0} ${r.days === 1 ? 'dia' : 'dies'}`;
       return `<li class="rank-row${r.uid === me ? ' me' : ''}">
         <span class="pos">${i + 1}</span>
-        <span class="ring" style="${ring}">${esc(initials(r.name))}</span>
+        ${ringHTML(r.name, r.avatar, '', ring)}
         <span class="who"><b>${r.uid === me ? 'Tu' : esc(r.name)}</b><small>${esc(sub)}</small></span>
         <span class="pts">${r.total}</span>
       </li>`;
@@ -1050,7 +1284,54 @@
     </section>`;
   }
 
-  const SCREENS = { entrada: screenEntrada, tutorial: screenTutorial, avui: screenAvui, joc: screenJoc, correccio: screenCorreccio, resultat: screenResultat, ranquing: screenRanquing, savis: screenSavis, vitrina: screenVitrina };
+  /* ================= Mode aula: sense temps, sense rànquing ================= */
+  function startPractice(key, label) {
+    if (!state.practice) state.savedPuzzle = state.puzzle;
+    const pz = P.generateDay(key);
+    state.practice = { key, label, puzzle: pz, day: { levels: [], total: 0 } };
+    state.puzzle = pz;
+  }
+  function exitPractice() {
+    if (!state.practice) return;
+    state.practice = null;
+    state.puzzle = state.savedPuzzle || P.generateDay(state.dayKey);
+    state.savedPuzzle = null;
+  }
+  function randomPractice() {
+    startPractice('aula-' + Math.random().toString(36).slice(2, 9), 'Repte aleatori');
+    track('mode_aula', 'Mode aula');
+  }
+
+  function screenAula() {
+    if (!state.practice) randomPractice();
+    const pr = state.practice, pz = pr.puzzle, d = pr.day;
+    const rows = pz.levels.map((L, i) => {
+      const st = d.levels[i];
+      const right = st && st.done ? `<b class="${st.exact ? 'gold' : ''}">${st.points}</b>` : '<span class="muted">→</span>';
+      return `<li><button type="button" class="lvl-row aula-row" data-action="aula-level" data-level="${i}">
+        <span>Nivell ${i + 1}</span><span class="muted small">${L.count} xifres</span><span class="lvl-right">${right}</span></button></li>`;
+    }).join('');
+    // Reptes anteriors (mai el d'avui, perquè no se'n vegin les solucions abans de jugar-lo)
+    const past = [];
+    for (let i = 1; i <= 7; i++) {
+      const k = P.addDays(state.dayKey, -i);
+      if (k < C.startDate) break;
+      past.push(`<button type="button" class="day-chip${pr.key === k ? ' on' : ''}" data-action="aula-day" data-day="${k}">${P.shortDay(k)} ${+k.slice(8)}<small>nº ${P.challengeNumber(k)}</small></button>`);
+    }
+    return `<section class="screen aula">
+      ${header()}
+      <p class="kicker">Mode aula · sense temps</p>
+      <h1 class="title">Pràctica</h1>
+      <p class="lead">Sense rellotge i sense comptar per al rànquing ni per a la ratxa. Ideal per projectar a classe o practicar tant com vulguis.</p>
+      <p class="kicker gold">${esc(pr.label)}</p>
+      <ol class="card lvl-list aula-list">${rows}</ol>
+      <button type="button" class="btn btn-primary" data-action="aula-new">Genera un repte nou</button>
+      ${past.length ? `<div><p class="kicker">Reptes anteriors</p><div class="day-chips">${past.join('')}</div></div>` : ''}
+      <button type="button" class="btn-text" data-go="avui">Torna al repte d'avui</button>
+    </section>`;
+  }
+
+  const SCREENS = { aula: screenAula, entrada: screenEntrada, tutorial: screenTutorial, avui: screenAvui, joc: screenJoc, correccio: screenCorreccio, resultat: screenResultat, ranquing: screenRanquing, savis: screenSavis, vitrina: screenVitrina };
 
   /* ================= Modals ================= */
   function openModal(html) {
@@ -1063,18 +1344,130 @@
 
   function profileModal() {
     let html = '<h2 class="title sm">El teu perfil</h2>';
+    const played = Object.keys(store.days).filter(k => store.days[k].finished).length;
+    const stats = `<p class="muted small">Dies completats: <b class="chalk">${played}</b> · Ratxa: <b class="chalk">${streak()}</b> · Segells: <b class="chalk">${ACH.filter(a => store.ach[a.id]).length}/${ACH.length}</b></p>`;
     if (state.user) {
-      html += `<p class="lead">Has entrat com a <b class="chalk">${esc(state.user.name)}</b>. Les teves puntuacions apareixen al rànquing.</p>
-        <button type="button" class="btn btn-ghost" data-action="signout">Tanca la sessió</button>`;
-    } else if (B.enabled) {
-      html += `<p class="lead">Ara jugues com a convidat. Entra amb Google per sortir al rànquing compartit.</p>
+      const av = parseAv(state.user.avatar) || { gi: 0, ci: 4 };
+      state.pf = { gi: av.gi, ci: av.ci };
+      html += `<div class="prof-head"><span id="pf-prev"></span><div><b id="pf-show">${esc(state.user.name)}</b><small>Així et veuran al rànquing</small></div></div>
+        <label class="field"><span class="kicker">Nom públic</span>
+          <input id="pf-name" type="text" maxlength="20" autocomplete="nickname" spellcheck="false" value="${esc(state.user.name)}"></label>
+        <div class="field"><span class="kicker">Avatar</span>
+          <div class="av-grid">${AV_GLYPHS.map((g, k) => `<button type="button" data-av-g="${k}" aria-label="Símbol ${g}">${g}</button>`).join('')}</div>
+          <div class="av-colors">${SV.list.map((s, k) => `<button type="button" data-av-c="${k}" style="background:${s.color}" aria-label="Color ${s.colorName}"></button>`).join('')}</div>
+        </div>
+        <button type="button" class="btn btn-primary" data-action="profile-save">Desa el perfil</button>
+        <button type="button" class="btn btn-ghost" data-action="challenge">${ICON.share}Repta un amic</button>
+        ${stats}
+        <button type="button" class="btn-text" data-action="signout">Tanca la sessió</button>`;
+      openModal(html);
+      paintProfile();
+      return;
+    }
+    if (B.enabled) {
+      html += `<p class="lead">Ara jugues com a convidat: el progrés només es guarda en aquest navegador. Inicia sessió amb Google per no perdre’l, triar un nom i un avatar i aparèixer al rànquing.</p>
         <button type="button" class="btn btn-primary" data-action="signin">${ICON.google}Continua amb Google</button>`;
     } else {
       html += '<p class="lead">Mode local: les partides es guarden en aquest dispositiu. El rànquing compartit s’activa quan es configura Firebase.</p>';
     }
-    const played = Object.keys(store.days).filter(k => store.days[k].finished).length;
-    html += `<p class="muted small">Dies completats: <b class="chalk">${played}</b> · Ratxa: <b class="chalk">${streak()}</b> · Segells: <b class="chalk">${ACH.filter(a => store.ach[a.id]).length}/${ACH.length}</b></p>`;
-    openModal(html);
+    openModal(html + stats);
+  }
+
+  // Previsualització en directe de l'avatar i el nom
+  function paintProfile() {
+    const prev = document.getElementById('pf-prev'), inp = document.getElementById('pf-name');
+    if (!prev || !state.pf) return;
+    const name = inp ? inp.value.trim() : '';
+    prev.innerHTML = ringHTML(name, state.pf.gi + '.' + state.pf.ci, 'lg');
+    const show = document.getElementById('pf-show');
+    if (show) show.textContent = name || '—';
+    modalEl.querySelectorAll('[data-av-g]').forEach(b => b.classList.toggle('on', +b.dataset.avG === state.pf.gi));
+    modalEl.querySelectorAll('[data-av-c]').forEach(b => b.classList.toggle('on', +b.dataset.avC === state.pf.ci));
+  }
+
+  function saveProfile() {
+    const inp = document.getElementById('pf-name');
+    const name = (inp ? inp.value : '').replace(/\s+/g, ' ').trim();
+    if (!/^[\p{L}\p{N} .'’_-]{2,20}$/u.test(name)) return toast('El nom ha de tenir de 2 a 20 lletres o xifres.');
+    const btn = modalEl.querySelector('[data-action="profile-save"]');
+    if (btn) btn.disabled = true;
+    B.saveProfile(name, state.pf.gi + '.' + state.pf.ci, state.dayKey).then(() => {
+      closeModal(); toast('Perfil desat'); render();
+    }).catch(e => { if (btn) btn.disabled = false; toast('No s’ha pogut desar el perfil: ' + (e.message || e)); });
+  }
+
+  modalEl.addEventListener('click', e => {
+    const g = e.target.closest('[data-av-g]'), c = e.target.closest('[data-av-c]');
+    if (!state.pf || (!g && !c)) return;
+    if (g) state.pf.gi = +g.dataset.avG;
+    if (c) state.pf.ci = +c.dataset.avC;
+    paintProfile();
+  });
+  modalEl.addEventListener('input', e => { if (e.target.id === 'pf-name') paintProfile(); });
+  modalEl.addEventListener('keydown', e => { if (e.target.id === 'pf-name' && e.key === 'Enter') { e.preventDefault(); saveProfile(); } });
+
+  /* ================= Instal·lar l'app (PWA) ================= */
+  let installEvt = null;
+  const isStandalone = () => (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault(); installEvt = e;
+    if (state.screen === 'resultat' || state.screen === 'vitrina') render();
+  });
+  window.addEventListener('appinstalled', () => { installEvt = null; track('pwa_installada', 'App instal·lada'); });
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  }
+
+  function installBtn() {
+    if (isStandalone() || (!installEvt && !isIOS)) return '';
+    return `<button type="button" class="btn btn-ghost btn-install" data-action="install">${ICON.phone}Afegeix a la pantalla d’inici</button>`;
+  }
+  function install() {
+    if (installEvt) {
+      installEvt.prompt();
+      installEvt.userChoice.then(c => { if (c && c.outcome === 'accepted') track('pwa_installada', 'App instal·lada'); installEvt = null; render(); });
+    } else {
+      openModal(`<h2 class="title sm">Afegeix combina ≈ a l'iPhone</h2>
+        <ol class="ios-steps">
+          <li>Toca el botó <b>Comparteix</b> ${ICON.share} de Safari (a baix de tot).</li>
+          <li>Tria <b>«Afegeix a la pantalla d'inici»</b>.</li>
+          <li>Toca <b>Afegeix</b>. Ja tindràs el repte diari a un toc!</li>
+        </ol>`);
+    }
+  }
+
+  /* ================= Estadístiques ================= */
+  function stats() {
+    const played = Object.keys(store.days).filter(k => store.days[k].finished);
+    const totals = played.map(k => store.days[k].total);
+    const gauss = totals.filter(t => SV.rankFor(t).key === 'gauss').length;
+    return {
+      played: played.length,
+      best: totals.length ? Math.max.apply(null, totals) : 0,
+      avg: totals.length ? Math.round(totals.reduce((a, b) => a + b, 0) / totals.length) : 0,
+      gaussPct: totals.length ? Math.round(gauss / totals.length * 100) : 0,
+      streak: streak(), bestStreak: Math.max(store.bestStreak, streak())
+    };
+  }
+  function statsCard() {
+    const s = stats();
+    const cell = (label, v) => `<div class="stat-cell"><b>${v}</b><span>${label}</span></div>`;
+    return `<section class="card stats-card" aria-label="Estadístiques">
+      <p class="streak-line">Ratxa actual: <b>${s.streak} ${s.streak === 1 ? 'dia' : 'dies'}</b> 🔥</p>
+      <div class="stat-grid">
+        ${cell('Reptes jugats', s.played)}${cell('Millor puntuació', s.best || '—')}
+        ${cell('Mitjana', s.played ? s.avg : '—')}${cell('Rang Gauss', s.played ? s.gaussPct + ' %' : '—')}
+        ${cell('Millor ratxa', s.bestStreak)}${cell('Segells', ACH.filter(a => store.ach[a.id]).length + '/' + ACH.length)}
+      </div>
+      ${B.enabled && !state.user ? '<p class="muted small">Ara només es guarden en aquest navegador. <button type="button" class="btn-text inline" data-action="signin">Sincronitza-les amb Google</button></p>' : ''}
+    </section>`;
+  }
+
+  // Expressió en text pla (p. ex. «(3 + 4) × 2»)
+  function exprText(tokens) {
+    return (tokens || []).map(t => t.t === 'num' ? String(t.v) : t.t === 'op' ? ({ '*': '×', '/': '÷', '-': '−' }[t.v] || t.v)
+      : t.t === 'sqrt' ? '√' : t.t).join(' ').slice(0, 160);
   }
 
   /* ================= Accions ================= */
@@ -1083,7 +1476,9 @@
     if (!d.finished || d.submitted || !B.enabled || !state.user) return;
     B.submitDay(state.dayKey, {
       total: totalOf(d), exact: exactOf(d),
-      levels: state.puzzle.levels.map((_, i) => (d.levels[i] ? d.levels[i].points : 0))
+      levels: state.puzzle.levels.map((_, i) => (d.levels[i] ? d.levels[i].points : 0)),
+      // Expressions enviades, per poder-les revisar (i, en un futur, recalcular-les al servidor)
+      exprs: state.puzzle.levels.map((_, i) => exprText(d.levels[i] && d.levels[i].tokens))
     }).then(() => { d.submitted = true; save(); }).catch(e => console.warn('No s’ha pogut desar la puntuació', e));
   }
 
@@ -1102,7 +1497,7 @@
   }
 
   document.addEventListener('click', e => {
-    const t = e.target.closest('[data-go],[data-action],[data-tile],[data-key],[data-tab]');
+    const t = e.target.closest('[data-go],[data-action],[data-tile],[data-key],[data-tab],[data-scope]');
     if (!t || t.disabled) return;
     if (t.dataset.go) {
       closeModal();
@@ -1112,7 +1507,14 @@
     if (t.dataset.tile != null) return pressTile(+t.dataset.tile);
     if (t.dataset.key) return press(t.dataset.key);
     if (t.dataset.tab) { state.rankTab = t.dataset.tab; return render(); }
+    if (t.dataset.scope) { state.rankScope = t.dataset.scope; return render(); }
     switch (t.dataset.action) {
+      case 'aula-level': state.level = +t.dataset.level; go('joc'); break;
+      case 'aula-new': randomPractice(); render(); break;
+      case 'aula-day': startPractice(t.dataset.day, 'Repte nº ' + P.challengeNumber(t.dataset.day) + ' · ' + P.prettyDay(t.dataset.day)); render(); break;
+      case 'install': install(); break;
+      case 'challenge': challenge(); break;
+      case 'profile-save': saveProfile(); break;
       case 'guest': store.guest = true; save(); if (!store.seenHelp) openTutorial(); else go('avui'); break;
       case 'signin': closeModal(); B.signIn().catch(err => toast('No s’ha pogut iniciar la sessió: ' + (err.message || err))); break;
       case 'signout': closeModal(); B.signOut(); break;
@@ -1188,7 +1590,10 @@
     if (k !== state.dayKey) {
       const st = day().levels[state.level];
       const playing = state.screen === 'joc' && st && st.startAt && !st.done;
-      if (!playing) {
+      if (state.practice) {
+        // A l'aula no interrompem la classe: el repte nou s'agafa en sortir
+        state.dayKey = k; state.savedPuzzle = P.generateDay(k); applyFreezes();
+      } else if (!playing) {
         state.dayKey = k;
         state.puzzle = P.generateDay(k);
         applyFreezes();
@@ -1212,10 +1617,28 @@
   }
 
   applyFreezes();
+  readChallenge();
+  loadChallenger();
 
   B.onAuth(u => {
     state.user = u;
-    if (u) { store.guest = true; save(); submitDay(); }
+    cloud.ready = false;
+    if (u) {
+      store.guest = true;
+      if (store.friends[u.uid]) delete store.friends[u.uid];
+      save();
+      // Recupera el progrés desat al núvol i el combina amb el d'aquest navegador
+      B.loadSave().then(r => {
+        if (state.user !== u) return;
+        mergeStore(r);
+        cloud.ready = true;
+        save(); pushCloud();
+        submitDay();
+        const st = day().levels[state.level];
+        const playing = state.screen === 'joc' && st && st.startAt && !st.done;
+        if (r && state.screen && state.screen !== 'entrada' && !playing) render();
+      }).catch(e => { console.warn('No s’ha pogut llegir el progrés del núvol', e); submitDay(); });
+    }
     if (!state.screen) {
       if (!store.guest && !u) go('entrada');
       else resumeOrHome();
