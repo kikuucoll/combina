@@ -953,3 +953,12 @@ button.chip:hover { border-color: rgba(var(--gold-rgb), .55); box-shadow: 0 0 14
 @media (max-height: 640px) {
   .entrada .ops-line, .entrada .lead { display: none; }
 }
+
+/* ---------- Normes plegades ---------- */
+.rules-box { padding: 0 16px; margin-top: 4px; }
+.rules-box summary { padding: 14px 0; cursor: pointer; font-size: 13.5px; color: var(--muted); list-style: none; display: flex; justify-content: space-between; align-items: center; }
+.rules-box summary::-webkit-details-marker { display: none; }
+.rules-box summary::after { content: '+'; font-family: var(--mono); color: var(--gold); font-size: 16px; }
+.rules-box[open] summary::after { content: '−'; }
+.rules-box[open] summary { color: var(--chalk); }
+.rules-box .tut-rules { margin: 0 0 14px; }

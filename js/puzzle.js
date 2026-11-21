@@ -103,13 +103,15 @@
     { lo: 25, hi: 160, k: [8, 8], w: [0.42, 0.32, 0.20, 0.06], pow: 0.2,  root: 0.15, needMul: false, strong: 0 }
   ];
   // Corba nova (des de COMBINA_CONFIG.curveFrom): N1–N3 molt assequibles, amb xifres i objectius petits.
-  // Objectius: N1 fins a 12 · N2 13–20 · N3 21–35 · N4 36–100 · N5 més de 100.  max = xifra més gran.
+  // Objectius: N1 fins a 15 · N2 16–30 · N3 31–50 · N4 51–100 · N5 com sempre.  max = xifra més gran.
+  // N1 és per enganxar: xifres d'un sol dígit i només sumes i restes.
   var SPEC2 = [
-    { lo: 1,   hi: 12,  max: 10, k: [4, 4], w: [0.50, 0.38, 0.12, 0],    pow: 0,    root: 0,    needMul: false, strong: 0 },
-    { lo: 13,  hi: 20,  max: 12, k: [5, 5], w: [0.48, 0.36, 0.14, 0.02], pow: 0,    root: 0,    needMul: false, strong: 0 },
-    { lo: 21,  hi: 35,  max: 15, k: [6, 6], w: [0.46, 0.34, 0.16, 0.04], pow: 0,    root: 0,    needMul: false, strong: 0 },
-    { lo: 36,  hi: 100, max: 20, k: [7, 7], w: [0.42, 0.32, 0.20, 0.06], pow: 0.12, root: 0.10, needMul: false, strong: 0 },
-    { lo: 101, hi: 220, max: 20, k: [8, 8], w: [0.40, 0.30, 0.24, 0.06], pow: 0.2,  root: 0.15, needMul: false, strong: 0 }
+    { lo: 1,  hi: 15,  max: 9,  k: [4, 4], w: [0.58, 0.42, 0, 0],       pow: 0,    root: 0,    needMul: false, strong: 0 },
+    { lo: 16, hi: 30,  max: 10, k: [5, 5], w: [0.50, 0.34, 0.16, 0],    pow: 0,    root: 0,    needMul: false, strong: 0 },
+    { lo: 31, hi: 50,  max: 12, k: [6, 6], w: [0.46, 0.32, 0.18, 0.04], pow: 0,    root: 0,    needMul: false, strong: 0 },
+    { lo: 51, hi: 100, max: 20, k: [7, 7], w: [0.42, 0.32, 0.20, 0.06], pow: 0.12, root: 0.10, needMul: false, strong: 0 },
+    // N5: les mateixes operacions i xifres que fins ara, però l'objectiu sempre per sobre del N4
+    Object.assign({}, SPEC[4], { lo: 101, hi: 160 })
   ];
   var PREC = { '^': 3, '*': 2, '/': 2, '+': 1, '-': 1 };
 

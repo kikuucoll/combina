@@ -508,10 +508,20 @@
     </section>`;
   }
 
+  // Només quan es repeteix el tutorial des del menú (el primer cop es passa directament al joc)
   function tutorialDone() {
     return `<div class="card tut-done">
       <p class="pop exact">+100</p>
       <p class="tut-done-title">Exacte! Ja saps jugar.</p>
+      <button type="button" class="btn btn-primary" data-action="tut-finish">Juga el repte d'avui</button>
+      <button type="button" class="btn btn-ghost" data-action="tut-again">Torna a provar el tutorial</button>
+    </div>`;
+  }
+
+  // Normes completes: plegades a la pantalla d'avui, per a qui les vulgui llegir
+  function rulesHTML() {
+    return `<details class="card rules-box">
+      <summary>Normes i puntuació</summary>
       <ul class="tut-rules">
         <li><b>Cada dia a les 9:00</b>, un repte nou amb <b>5 nivells</b> (de 4 a 8 xifres de l'1 al 20).</li>
         <li>Tens de <b>30 a 50 segons</b> per nivell. Si s'acaba el temps, es corregeix el que hi hagi.</li>
@@ -519,9 +529,7 @@
         <li><b>Cada ronda val fins a 100 punts</b> (500 al dia). Si encertes l'objectiu fent servir <b>totes les xifres</b>, en fas 100; amb menys xifres, el màxim baixa fins a 70. <b>Cada unitat de distància resta un 10 %</b>: a 1, el 90 %; a 5, la meitat; a 10 o més, 0.</li>
         <li>Amb el total del dia, aconsegueixes la medalla d'un dels <b>cinc savis</b>. Juga cada dia per allargar la <b>ratxa</b> i guanyar <b>segells</b>.</li>
       </ul>
-      <button type="button" class="btn btn-primary" data-action="tut-finish">Comença el repte d'avui</button>
-      <button type="button" class="btn btn-ghost" data-action="tut-again">Torna a provar el tutorial</button>
-    </div>`;
+    </details>`;
   }
 
   function coachText(st) {
@@ -544,9 +552,19 @@
     if (!r.ok) return nudge();
     const pts = E.points(TUT.target, r.v, E.tilesUsed(state.tut.tokens), TUT.count);
     if (E.distance(TUT.target, r.v) === 0) {
-      state.tutResult = { exact: true, points: pts };
+      const first = !store.seenHelp;
       track('tutorial_completat', 'Tutorial completat');
       store.seenHelp = true; save();
+      sfx('full');
+      if (first) {
+        // Primer cop: sense pantalles entremig, directes al nivell 1
+        const c = document.getElementById('coach');
+        if (c) c.innerHTML = '<b>Exacte! +100.</b> Ara, el repte d’avui…';
+        view.querySelectorAll('.tile, .key').forEach(b => { b.disabled = true; });
+        setTimeout(() => { if (state.screen === 'tutorial') play(); }, reduceMotion ? 300 : 1100);
+        return;
+      }
+      state.tutResult = { exact: true, points: pts };
       render();
     } else {
       const c = document.getElementById('coach');
@@ -597,6 +615,7 @@
           ${cta}
           <p class="countdown-line">Nou repte en <span class="countdown gold" data-countdown></span></p>
           <button type="button" class="btn-text aula-link" data-go="aula">Mode aula · sense temps</button>
+          ${rulesHTML()}
         </div>
         <div class="side-col">
           <section class="card yesterday" aria-label="Ahir i la teva setmana">${yesterday}</section>
@@ -763,6 +782,18 @@
   /* Esdeveniment anònim a GoatCounter (si està carregat; sense dades personals) */
   function track(name, title) {
     try { if (window.goatcounter && window.goatcounter.count) window.goatcounter.count({ path: name, title: title || name, event: true }); } catch (e) {}
+  }
+
+  // «Comença» vol dir comença ja: es mostra el tauler i el rellotge arrenca, sense pantalla d'espera
+  function beginLevel(i) {
+    state.level = i;
+    const d = day();
+    if (!(d.levels[i] && d.levels[i].startAt)) {
+      if (i === 0 && !state.practice) track('repte-comencat', 'Repte començat');
+      d.levels[i] = { tokens: [], startAt: Date.now(), done: false };
+      save();
+    }
+    go('joc');
   }
 
   function startLevel() {
@@ -1486,8 +1517,7 @@
     const d = day();
     const next = state.puzzle.levels.findIndex((_, i) => !(d.levels[i] && d.levels[i].done));
     if (next < 0) return go('resultat');
-    state.level = next;
-    go('joc');
+    beginLevel(next);
   }
 
   function openTutorial() {
@@ -1509,7 +1539,7 @@
     if (t.dataset.tab) { state.rankTab = t.dataset.tab; return render(); }
     if (t.dataset.scope) { state.rankScope = t.dataset.scope; return render(); }
     switch (t.dataset.action) {
-      case 'aula-level': state.level = +t.dataset.level; go('joc'); break;
+      case 'aula-level': beginLevel(+t.dataset.level); break;
       case 'aula-new': randomPractice(); render(); break;
       case 'aula-day': startPractice(t.dataset.day, 'Repte nº ' + P.challengeNumber(t.dataset.day) + ' · ' + P.prettyDay(t.dataset.day)); render(); break;
       case 'install': install(); break;
@@ -1520,7 +1550,7 @@
       case 'signout': closeModal(); B.signOut(); break;
       case 'play': play(); break;
       case 'start': startLevel(); break;
-      case 'next': state.level++; go('joc'); break;
+      case 'next': beginLevel(state.level + 1); break;
       case 'replay': render(); break;
       case 'share': share(); break;
       case 'profile': profileModal(); break;

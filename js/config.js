@@ -10,7 +10,7 @@ window.COMBINA_CONFIG = {
   // Segons per nivell (nivells 1 a 5)
   levelSeconds: [30, 35, 40, 45, 50],
   // A partir d'aquest repte, nivells 1–3 més assequibles (objectius ≤12, 13–20, 21–35, 36–100, >100)
-  curveFrom: '2026-11-22',
+  curveFrom: '2026-11-21',
   // Xifres per nivell
   levelCounts: [4, 5, 6, 7, 8],
   // Puntuació màxima del dia (5 rondes × 100 punts)
