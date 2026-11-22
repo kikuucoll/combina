@@ -8,7 +8,7 @@ window.COMBINA_CONFIG = {
   timeZone: 'Europe/Madrid',
   resetHour: 9,
   // Segons per nivell (nivells 1 a 5)
-  levelSeconds: [30, 35, 40, 45, 50],
+  levelSeconds: [40, 40, 60, 60, 65],
   // A partir d'aquest repte, nivells 1–3 més assequibles (objectius ≤12, 13–20, 21–35, 36–100, >100)
   curveFrom: '2026-11-21',
   // Xifres per nivell

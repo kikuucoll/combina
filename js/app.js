@@ -81,7 +81,8 @@
   function maxTotal() { return C.dailyTotal || 500; }
   const LEVEL_MAX = C.levelMax || 100;
   function doneCount(d) { return (d.levels || []).filter(l => l && l.done).length; }
-  function secsFor(i) { return C.levelSeconds[i]; }
+  function levelTimes() { return C.levelSeconds; }
+  function secsFor(i) { return levelTimes()[i]; }
   function remaining(st, i) { return secsFor(i) - (Date.now() - st.startAt) / 1000; }
   function isDone(k) { const d = store.days[k]; return !!(d && d.finished); }
 
@@ -591,7 +592,7 @@
       <summary>Normes i puntuació</summary>
       <ul class="tut-rules">
         <li><b>Cada dia a les 9:00</b>, un repte nou amb <b>5 nivells</b> (de 4 a 8 xifres de l'1 al 20).</li>
-        <li>Tens de <b>30 a 50 segons</b> per nivell. Si s'acaba el temps, es corregeix el que hi hagi.</li>
+        <li>Tens de <b>${Math.min(...levelTimes())} a ${Math.max(...levelTimes())} segons</b> per nivell. Si s'acaba el temps, es corregeix el que hi hagi.</li>
         <li>Pots fer servir <b>+ − × ÷</b> i <b>parèntesis</b>. Als nivells 4 i 5 també <b>potències</b> (l'exponent és una xifra) i <b>arrels</b>.</li>
         <li><b>Arribar a l'objectiu exacte val 100 punts</b> (500 al dia). Si a més fas servir <b>totes les xifres</b>, guanyes una <b class="gold">estrella ★</b>. Si no hi arribes, <b>cada unitat de distància resta un 10 %</b>: a 1, 90 punts; a 5, 50; a 10 o més, 0.</li>
         <li>Amb el total del dia, aconsegueixes la medalla d'un dels <b>cinc savis</b>. Juga cada dia per allargar la <b>ratxa</b> i guanyar <b>segells</b>.</li>
