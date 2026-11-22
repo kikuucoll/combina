@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://kikuucoll.github.io/combina/sitemap.xml
+Sitemap: https://combina.cat/sitemap.xml
