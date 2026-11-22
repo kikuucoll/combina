@@ -1151,11 +1151,11 @@ body.cd-on .shell, body.cd-on .toast, body.cd-on .banner, body.cd-on .modal { vi
 .cd { position: fixed; inset: 0; z-index: 50; overflow: hidden; pointer-events: auto; touch-action: none; transition: opacity .35s ease; }
 .cd.out { opacity: 0; pointer-events: none; }
 .cd-orbits { position: absolute; inset: 0; z-index: 0; }
-.cd-orbits ellipse { stroke-opacity: .08; stroke-width: .8; }
+.cd-orbits ellipse { stroke-opacity: .12; stroke-width: .8; }
 .cd-sat { position: absolute; left: 0; top: 0; will-change: transform, opacity; }
 .cd-sat .medal { display: block; }
 .cd-num-wrap {
-  position: absolute; inset: 0; z-index: 4; display: flex; align-items: center; justify-content: center;
+  position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center;
   pointer-events: none; animation: cd-levitate 2.6s ease-in-out infinite;
 }
 .cd-num {
