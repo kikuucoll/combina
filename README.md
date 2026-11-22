@@ -81,3 +81,7 @@ js/app.js         pantalles i lògica del joc
 firestore.rules   regles de seguretat de la base de dades
 firebase.json     configuració per publicar a Firebase Hosting
 ```
+
+## Llicència
+
+© 2026 Kiku (combina.cat). **Tots els drets reservats.** El repositori és públic només per publicar el joc amb GitHub Pages; no es permet copiar, modificar ni redistribuir el codi sense permís. Vegeu [LICENSE](LICENSE).
