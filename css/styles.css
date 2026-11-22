@@ -1243,3 +1243,9 @@ body.cd-on .shell, body.cd-on .toast, body.cd-on .banner, body.cd-on .modal { vi
 .dist-msg { margin: 0; font-size: 14px; line-height: 1.45; color: var(--muted); }
 .dist-msg b { font-weight: 600; }
 .dist-card .dist-msg .gold { color: var(--rc, var(--gold-t)); }
+
+/* ---------- Sense zoom de doble toc ---------- */
+/* Tocar ràpid dues xifres seguides no ha d'ampliar la pantalla (iOS/Android).
+   «manipulation» manté el zoom amb dos dits, per accessibilitat. */
+html, body, button, a, .tile, .key { touch-action: manipulation; }
+.tile, .key, .btn, .tiles, .keypad, .expr-card { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
