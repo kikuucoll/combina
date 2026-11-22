@@ -1146,7 +1146,7 @@ button.chip:hover { border-color: rgba(var(--gold-rgb), .55); box-shadow: 0 0 14
 .tut-pop.show { background: none; }
 .key.submit.guide::after { right: 10%; }
 
-/* ---------- Compte enrere «Preparat, 3, 2, 1» amb els savis en òrbita ---------- */
+/* ---------- Compte enrere «Prepara’t, 3, 2, 1» amb els savis en òrbita ---------- */
 body.cd-on .shell, body.cd-on .toast, body.cd-on .banner, body.cd-on .modal { visibility: hidden; }
 .cd { position: fixed; inset: 0; z-index: 50; overflow: hidden; pointer-events: auto; touch-action: none; transition: opacity .35s ease; }
 .cd.out { opacity: 0; pointer-events: none; }

@@ -1799,14 +1799,14 @@
     countdown(() => { const n = nextLevel(); if (n < 0) go('resultat'); else beginLevel(n); });
   }
 
-  /* ================= Compte enrere: «Preparat, 3, 2, 1» =================
+  /* ================= Compte enrere: «Prepara’t, 3, 2, 1» =================
    * Els cinc savis orbiten com electrons, cadascun en un pla inclinat diferent,
    * i s'acceleren fins a gairebé desaparèixer just quan arrenca el repte. */
   let cdBusy = false;
   function countdown(done) {
     if (cdBusy) return;
     cdBusy = true;
-    const steps = ['Preparat', '3', '2', '1'];
+    const steps = ['Prepara’t', '3', '2', '1'];
     const STEP = reduceMotion ? 650 : 1000, T = STEP * steps.length;
     const vw = window.innerWidth, vh = window.innerHeight, m = Math.min(vw, vh);
     const size = Math.round(Math.max(38, Math.min(62, m * 0.12)));
