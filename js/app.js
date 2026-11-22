@@ -20,6 +20,8 @@
     s.freezes = s.freezes || 0;           // comodins disponibles (màx. 2)
     s.frozen = s.frozen || {};            // dies salvats amb comodí
     s.ach = s.ach || {};                  // segells: id → dia
+    // segells ja vistos a la vitrina (els que no, surten com a «Nou»); amb dades antigues, tots vistos
+    if (!s.seenAch) { s.seenAch = {}; Object.keys(s.ach).forEach(id => { s.seenAch[id] = 1; }); }
     s.milestones = s.milestones || {};    // fites de ratxa: dies → dia
     s.bestStreak = s.bestStreak || 0;
     s.friends = s.friends || {};          // amics (uid → dia que es van afegir), per al rànquing d'amics
@@ -51,6 +53,8 @@
       if (!store[f][id] || r[f][id] < store[f][id]) store[f][id] = r[f][id];
     }));
     Object.assign(store.frozen, r.frozen || {});
+    // Desades antigues sense seenAch: els seus segells ja s'havien vist a l'altre dispositiu
+    Object.keys(r.seenAch || r.ach || {}).forEach(id => { store.seenAch[id] = 1; });
     Object.keys(r.friends || {}).forEach(u => { if (!store.friends[u]) store.friends[u] = r.friends[u]; });
     store.freezes = Math.min(2, Math.max(store.freezes, r.freezes || 0));
     store.bestStreak = Math.max(store.bestStreak, r.bestStreak || 0);
@@ -244,7 +248,7 @@
   function showBanner() {
     const b = bannerQueue[0];
     if (!b) return;
-    bannerEl.innerHTML = `<span class="seal on"><b>${esc(b.g)}</b></span><span><strong>${esc(b.title)}</strong><small>${esc(b.sub)}</small></span>`;
+    bannerEl.innerHTML = `<span class="seal on stamp" style="--d:.25s"><b>${esc(b.g)}</b></span><span><strong>${esc(b.title)}</strong><small>${esc(b.sub)}</small></span>`;
     bannerEl.classList.add('show');
     setTimeout(() => {
       bannerEl.classList.remove('show');
@@ -291,6 +295,11 @@
   function go(screen) {
     if (screen !== 'joc') stopTicker();
     if (state.practice && ['joc', 'correccio', 'aula'].indexOf(screen) < 0) exitPractice();
+    // Segells nous: es marquen com a vistos en entrar a la vitrina, però l'animació dura tota la visita
+    if (screen === 'vitrina' && state.screen !== 'vitrina') {
+      state.newSeals = ACH.filter(a => store.ach[a.id] && !store.seenAch[a.id]).map(a => a.id);
+      if (state.newSeals.length) { state.newSeals.forEach(id => { store.seenAch[id] = 1; }); save(); }
+    }
     state.screen = screen;
     render();
     window.scrollTo(0, 0);
@@ -300,8 +309,9 @@
     // Al tutorial també s'amaga: és una partida i la barra tapava el teclat (per sortir hi ha la fletxa enrere)
     const hidden = ['entrada', 'joc', 'correccio'].indexOf(state.screen) >= 0 || (state.screen === 'tutorial' && !(state.tutResult && state.tutResult.done));
     document.body.classList.toggle('no-nav', hidden);
+    const fresh = ACH.filter(a => store.ach[a.id] && !store.seenAch[a.id]).length;
     const item = (id, label, icon) =>
-      `<button type="button" class="nav-item${state.screen === id ? ' on' : ''}" data-go="${id}"${state.screen === id ? ' aria-current="page"' : ''}>${icon}<span>${label}</span></button>`;
+      `<button type="button" class="nav-item${state.screen === id ? ' on' : ''}" data-go="${id}"${state.screen === id ? ' aria-current="page"' : ''}>${icon}<span>${label}</span>${id === 'vitrina' && fresh ? `<i class="nav-dot" aria-label="${fresh} ${fresh === 1 ? 'segell nou' : 'segells nous'}"></i>` : ''}</button>`;
     navEl.innerHTML = `<div class="nav-brand">${wordmark}</div>` +
       item('avui', 'Avui', ICON.today) + item('ranquing', 'Rànquing', ICON.rank) +
       item('vitrina', 'Vitrina', ICON.trophy) + item('savis', 'Savis', ICON.sages) +
@@ -319,6 +329,7 @@
     if (state.screen === 'ranquing') loadRanking();
     if (state.screen === 'correccio') animateLevelPoints();
     if (state.screen === 'resultat') animateResult();
+    if (state.screen === 'resultat' || state.screen === 'desglos') prepareCard();
     tickCountdowns();
   }
 
@@ -368,6 +379,9 @@
         </div>`
     };
   }
+
+  // Mode aula «sense calculadora»: no es veu el resultat ni els punts fins que valides
+  function noCalc() { return !!state.practice && store.calc === false && state.screen === 'joc'; }
 
   /* Context actiu: el tutorial o el nivell en joc */
   function ctx() {
@@ -759,7 +773,7 @@
     const pr = !!state.practice;
     const head = `<header class="game-head">
       <button type="button" class="icon-btn" data-go="${pr ? 'aula' : 'avui'}" aria-label="${pr ? 'Torna al mode aula' : 'Surt (el temps continua corrent)'}">${ICON.close}</button>
-      <div class="game-progress"><p class="kicker">${pr ? 'Mode aula · nivell ' + (i + 1) + ' · sense temps' : 'Nivell ' + (i + 1) + ' de 5 · ' + secsFor(i) + ' s'}</p><div class="segs" aria-hidden="true">${progress}</div></div>
+      <div class="game-progress"><p class="kicker">${pr ? 'Mode aula · nivell ' + (i + 1) + (store.calc === false ? ' · sense calculadora' : ' · sense temps') : 'Nivell ' + (i + 1) + ' de 5 · ' + secsFor(i) + ' s'}</p><div class="segs" aria-hidden="true">${progress}</div></div>
       ${pr ? '<div class="timer off" aria-hidden="true"><span>∞</span></div>' : `<div class="timer" role="timer" aria-label="Temps restant">
         <svg viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="22" class="ring-bg"/><circle cx="26" cy="26" r="22" class="ring" id="ring"/></svg>
         <span id="timer-num">${secsFor(i)}</span>
@@ -773,7 +787,7 @@
           <p class="kicker">Nivell ${i + 1}</p>
           <p class="intro-big">${L.count} xifres<br><em>${pr ? 'sense rellotge' : secsFor(i) + ' segons'}</em></p>
           <div class="intro-tiles" aria-hidden="true">${Array.from({ length: L.count }, () => '<span>?</span>').join('')}</div>
-          <p class="lead center">${pr ? 'Mode aula: pensa amb calma, no compta per al rànquing ni per a la ratxa.' : 'Quan premis el botó, apareixeran l\'objectiu i les xifres i començarà el temps.'}</p>
+          <p class="lead center">${pr ? (store.calc === false ? 'Sense calculadora: no veuràs el resultat fins que validis. Fes els càlculs de cap!' : 'Mode aula: pensa amb calma, no compta per al rànquing ni per a la ratxa.') : 'Quan premis el botó, apareixeran l\'objectiu i les xifres i començarà el temps.'}</p>
           <button type="button" class="btn btn-primary" data-action="start">${pr ? 'Mostra' : 'Comença'} el nivell ${i + 1}</button>
         </div>
       </section>`;
@@ -842,7 +856,16 @@
 
     const r = E.value(st.tokens);
     const lv = document.getElementById('live-val'), lp = document.getElementById('live-pts'), sb = document.getElementById('submit');
-    if (r.ok) {
+    const card = document.querySelector('.expr-card');
+    if (card) card.classList.toggle('no-calc', noCalc());
+    if (noCalc()) {
+      // Només es diu si l'expressió és vàlida; el valor és càlcul mental
+      lv.textContent = r.empty ? ' ' : '= ?';
+      lp.textContent = r.empty ? '' : r.ok ? (open > 0 ? `Calcula-ho de cap · falta${open > 1 ? 'n' : ''} ${open} )` : 'Calcula-ho de cap i valida') : r.err;
+      lp.className = 'pill' + (r.empty ? ' hidden' : r.ok ? (open > 0 ? ' warn' : '') : ' err');
+      sb.disabled = !!r.empty;
+      setBar(0, false);
+    } else if (r.ok) {
       const d = E.distance(L.target, r.v), pts = E.points(L.target, r.v, E.tilesUsed(st.tokens), L.count);
       const all = E.tilesUsed(st.tokens) === L.count;
       lv.textContent = '= ' + E.fmt(r.v);
@@ -1264,7 +1287,7 @@
     const ex = exactOf(d), s = streak();
     const shown = state.celebrations.slice(0, 3), more = state.celebrations.length - shown.length;
     const cel = shown.length ? '<div class="celebrations">' + shown.map((c, k) =>
-      `<div class="celebration" style="animation-delay:${(0.4 + k * 0.25).toFixed(2)}s"><span class="seal on"><b>${esc(c.g)}</b></span><span><strong>${esc(c.title)}</strong><small>${esc(c.sub)}</small></span></div>`).join('') +
+      `<div class="celebration" style="animation-delay:${(0.4 + k * 0.25).toFixed(2)}s"><span class="seal on stamp" style="--d:${(0.7 + k * 0.25).toFixed(2)}s"><b>${esc(c.g)}</b></span><span><strong>${esc(c.title)}</strong><small>${esc(c.sub)}</small></span></div>`).join('') +
       (more > 0 ? `<button type="button" class="link-more" data-go="vitrina">I ${more} ${more === 1 ? 'novetat més' : 'novetats més'} a la vitrina →</button>` : '') + '</div>' : '';
     return `<section class="screen resultat">
       ${header()}
@@ -1282,7 +1305,7 @@
             <div><p class="kicker" style="color:${r.color}">Rang ${r.n} · ${r.colorName}</p><h1 class="res-name">${r.name}</h1></div>
           </div>
           <div class="res-actions">
-            <button type="button" class="btn btn-gold" data-action="share">${ICON.share}Comparteix el resultat</button>
+            <button type="button" class="btn btn-gold" data-action="share">${ICON.share}Comparteix el teu resultat</button>
             <button type="button" class="btn-text" data-go="desglos">Com ho has resolt? <span aria-hidden="true">→</span></button>
           </div>
           ${nameCard(total)}
@@ -1322,18 +1345,165 @@
     return `combina ≈ nº ${state.puzzle.number}\n${marks}${stars ? ' ' + '⭐'.repeat(stars) : ''}\n${total}/${maxTotal()} · ${r.name}${s > 1 ? ` · 🔥${s}` : ''}`;
   }
 
-  function share() {
-    const full = shareText() + '\n' + challengeURL();
-    track('resultat_compartit', 'Resultat compartit');
-    let copied = false;
+
+  /* ================= Targeta personal (imatge 1080×1920 per a històries) ================= */
+  // Medalla del savi com a imatge: l'SVG de medals.js sense animacions ni filtres CSS
+  function medalImage(key, size) {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = SV.medal(key, size);
+    const svg = tmp.querySelector('.medal-art');
+    svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    svg.setAttribute('width', size); svg.setAttribute('height', size);
+    svg.removeAttribute('style');
+    svg.querySelectorAll('animateTransform, animate').forEach(n => n.remove());
+    const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml' }));
+    return new Promise((ok, ko) => {
+      const im = new Image();
+      im.onload = () => { URL.revokeObjectURL(url); ok(im); };
+      im.onerror = e => { URL.revokeObjectURL(url); ko(e); };
+      im.src = url;
+    });
+  }
+
+  async function buildCard() {
+    const d = day(), total = totalOf(d), r = SV.rankFor(total), MAX = maxTotal(), stars = starsOf(d), s = streak();
+    const seals = ACH.filter(a => store.ach[a.id]).length;
     try {
-      if (navigator.clipboard) navigator.clipboard.writeText(full).then(() => { copied = true; }, () => {});
-    } catch (e) { /* sense porta-retalls */ }
-    if (navigator.share) {
-      navigator.share({ text: full }).catch(() => { if (copied) toast('Resultat copiat. Enganxa’l al grup!'); });
-    } else {
-      setTimeout(() => toast(copied ? 'Resultat copiat. Enganxa’l al WhatsApp o on vulguis!' : full), 200);
+      await Promise.all(['500 120px "STIX Two Text"', 'italic 400 60px "STIX Two Text"', '600 200px "IBM Plex Mono"', '500 40px "IBM Plex Mono"', '500 40px "IBM Plex Sans"', '600 40px "IBM Plex Sans"']
+        .map(f => document.fonts ? document.fonts.load(f) : null));
+    } catch (e) { /* tipografies del sistema */ }
+    const W = 1080, H = 1920, cv = document.createElement('canvas');
+    cv.width = W; cv.height = H;
+    const g = cv.getContext('2d');
+    const SERIF = '"STIX Two Text", Georgia, serif', MONO = '"IBM Plex Mono", Consolas, monospace', SANS = '"IBM Plex Sans", system-ui, sans-serif';
+    // Fons: tinta, halo del color del rang i una quadrícula de llibreta molt suau
+    g.fillStyle = '#0B0E12'; g.fillRect(0, 0, W, H);
+    let rg = g.createRadialGradient(W / 2, 720, 40, W / 2, 720, 900);
+    rg.addColorStop(0, `rgba(${r.rgb},.30)`); rg.addColorStop(.45, `rgba(${r.rgb},.08)`); rg.addColorStop(1, 'rgba(11,14,18,0)');
+    g.fillStyle = rg; g.fillRect(0, 0, W, H);
+    g.strokeStyle = 'rgba(236,232,223,.035)'; g.lineWidth = 2;
+    for (let x = 60; x < W; x += 60) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, H); g.stroke(); }
+    for (let y = 60; y < H; y += 60) { g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); }
+    g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+    // Capçalera
+    g.font = `500 92px ${SERIF}`;
+    const wA = g.measureText('combina ').width, wB = g.measureText('≈').width, x0 = W / 2 - (wA + wB) / 2;
+    g.textAlign = 'left'; g.fillStyle = '#ECE8DF'; g.fillText('combina ', x0, 190);
+    g.fillStyle = '#E6B85C'; g.fillText('≈', x0 + wA, 190);
+    g.textAlign = 'center'; g.fillStyle = '#9AA3B0'; g.font = `500 36px ${MONO}`;
+    g.fillText(`Repte nº ${state.puzzle.number} · ${P.prettyDay(state.dayKey)}`, W / 2, 262);
+    // Medalla del savi
+    try {
+      const im = await medalImage(r.key, 560);
+      g.save(); g.shadowColor = r.color; g.shadowBlur = 60;
+      g.drawImage(im, W / 2 - 280, 330, 560, 560); g.restore();
+      g.drawImage(im, W / 2 - 280, 330, 560, 560);
+    } catch (e) { /* sense medalla */ }
+    // Rang
+    g.fillStyle = r.color; g.font = `600 38px ${MONO}`;
+    g.fillText(`RANG ${r.n} · ${r.colorName.toUpperCase()}`, W / 2, 985);
+    g.fillStyle = '#ECE8DF'; g.font = `500 132px ${SERIF}`;
+    g.fillText(r.name, W / 2, 1120);
+    // Puntuació
+    g.font = `600 230px ${MONO}`;
+    const tW = g.measureText(String(total)).width;
+    g.font = `500 72px ${MONO}`;
+    const mW = g.measureText(' / ' + MAX).width, sx = W / 2 - (tW + mW) / 2;
+    g.textAlign = 'left';
+    g.save(); g.shadowColor = 'rgba(230,184,92,.45)'; g.shadowBlur = 40;
+    g.fillStyle = '#FFFFFF'; g.font = `600 230px ${MONO}`; g.fillText(String(total), sx, 1370); g.restore();
+    g.fillStyle = '#7D8693'; g.font = `500 72px ${MONO}`; g.fillText(' / ' + MAX, sx + tW, 1370);
+    g.textAlign = 'center';
+    // Cinc nivells: una peça per nivell, del color del rang de punts (or = exacte)
+    const bw = 150, gap = 22, bx = W / 2 - (5 * bw + 4 * gap) / 2, by = 1440;
+    state.puzzle.levels.forEach((L, i) => {
+      const st = d.levels[i], p = st && st.done ? st.points : 0, c = levelColor(p, LEVEL_MAX), x = bx + i * (bw + gap);
+      g.beginPath(); g.roundRect ? g.roundRect(x, by, bw, 120, 22) : g.rect(x, by, bw, 120);
+      g.fillStyle = `rgba(${c.rgb},${p >= LEVEL_MAX ? .9 : .16})`; g.fill();
+      g.strokeStyle = `rgba(${c.rgb},.9)`; g.lineWidth = 3; g.stroke();
+      g.fillStyle = p >= LEVEL_MAX ? '#0B0E12' : '#ECE8DF'; g.font = `600 50px ${MONO}`;
+      g.fillText(String(p), x + bw / 2, by + 76);
+      g.fillStyle = '#7D8693'; g.font = `500 26px ${MONO}`;
+      g.fillText('N' + (i + 1) + (st && st.star ? ' ★' : ''), x + bw / 2, by + 160);
+    });
+    // Ratxa · estrelles · segells
+    const cols = [[String(s), s === 1 ? 'dia de ratxa' : 'dies de ratxa'], [String(stars), stars === 1 ? 'estrella ★' : 'estrelles ★'], [seals + '/' + ACH.length, 'segells']];
+    cols.forEach((c, k) => {
+      const cx = W / 2 + (k - 1) * 320;
+      g.fillStyle = k === 0 ? '#E6B85C' : '#ECE8DF'; g.font = `600 68px ${MONO}`; g.fillText(c[0], cx, 1712);
+      g.fillStyle = '#9AA3B0'; g.font = `500 32px ${SANS}`; g.fillText(c[1], cx, 1760);
+    });
+    g.strokeStyle = 'rgba(236,232,223,.12)'; g.lineWidth = 2;
+    [-160, 160].forEach(dx => { g.beginPath(); g.moveTo(W / 2 + dx, 1650); g.lineTo(W / 2 + dx, 1775); g.stroke(); });
+    // Peu
+    g.fillStyle = '#E6B85C'; g.font = `600 42px ${SANS}`;
+    g.fillText('Supera’m a combina.cat', W / 2, 1862);
+    return new Promise(ok => cv.toBlob(ok, 'image/png'));
+  }
+
+  // Un sol botó «Comparteix el teu resultat»: imatge + text del resultat + enllaç de repte.
+  // La imatge es prepara en obrir la pantalla, perquè el menú de compartir s'obri dins del mateix toc (Safari ho exigeix).
+  function cardKey() { const d = day(); return state.dayKey + '|' + totalOf(d) + '|' + streak() + '|' + ACH.filter(a => store.ach[a.id]).length; }
+  function prepareCard() {
+    if (!day().finished || state.practice) return Promise.resolve(null);
+    const key = cardKey();
+    if (state.card && state.card.key === key) return state.card.ready;
+    const c = { key, file: null, url: null, name: 'combina-' + state.puzzle.number + '.png' };
+    c.ready = buildCard().then(blob => {
+      if (!blob) return null;
+      c.file = new File([blob], c.name, { type: 'image/png' });
+      c.url = URL.createObjectURL(blob);
+      return c;
+    }).catch(() => null);
+    if (state.card && state.card.url) URL.revokeObjectURL(state.card.url);
+    state.card = c;
+    return c.ready;
+  }
+  function shareMessage() { return shareText() + '\n' + challengeURL(); }
+  function copyMessage() {
+    try { if (navigator.clipboard) return navigator.clipboard.writeText(shareMessage()).then(() => true, () => false); } catch (e) { /* sense porta-retalls */ }
+    return Promise.resolve(false);
+  }
+
+  function shareResult() {
+    const c = state.card;
+    // Mòbil: imatge i missatge junts al menú del sistema (WhatsApp, Instagram, X…)
+    if (c && c.file && navigator.canShare && navigator.canShare({ files: [c.file] })) {
+      track('resultat_compartit', 'Resultat compartit');
+      copyMessage();   // per si l'app triada només agafa la imatge (Instagram): el text queda copiat
+      navigator.share({ files: [c.file], text: shareMessage() }).catch(err => {
+        if (err && err.name === 'AbortError') return;
+        // Alguns navegadors no deixen compartir fitxers amb text: com a mínim el missatge amb l'enllaç
+        if (navigator.share) navigator.share({ text: shareMessage() }).catch(() => {});
+      });
+      return;
     }
+    // Ordinador (o targeta encara no llesta): vista prèvia, descàrrega i missatge copiat
+    cardModal();
+  }
+
+  async function cardModal() {
+    track('resultat_compartit', 'Resultat compartit');
+    openModal('<p class="kicker">Comparteix el teu resultat</p><div class="card-prev"><p class="muted small">Preparant la targeta…</p></div>');
+    const [c, copied] = await Promise.all([prepareCard(), copyMessage()]);
+    if (modalEl.hidden) return;
+    const canFiles = !!(c && c.file && navigator.canShare && navigator.canShare({ files: [c.file] }));
+    openModal(`<p class="kicker">Comparteix el teu resultat</p>
+      ${c ? `<div class="card-prev"><img src="${c.url}" alt="Targeta amb la puntuació del repte nº ${state.puzzle.number}" width="1080" height="1920"></div>`
+        : '<p class="muted small">No s’ha pogut crear la imatge en aquest navegador, però pots enviar el missatge.</p>'}
+      <pre class="share-msg">${esc(shareMessage())}</pre>
+      ${canFiles ? `<button type="button" class="btn btn-gold" data-action="share">${ICON.share}Comparteix</button>` : ''}
+      ${c && !canFiles ? `<button type="button" class="btn btn-gold" data-action="card-download">Descarrega la imatge</button>` : ''}
+      <button type="button" class="btn btn-ghost" data-action="copy-msg">${copied ? 'Missatge copiat ✓' : 'Copia el missatge'}</button>
+      <p class="muted small center">${canFiles ? 'Tria WhatsApp, Instagram, X… al menú del mòbil.' : 'Envia la imatge i enganxa el missatge (amb l’enllaç) al xat o a la xarxa que vulguis.'}</p>`);
+  }
+  function cardDownload() {
+    const c = state.card;
+    if (!c || !c.url) return;
+    track('targeta_descarregada', 'Targeta descarregada');
+    const a = document.createElement('a');
+    a.href = c.url; a.download = c.name;
+    document.body.appendChild(a); a.click(); a.remove();
   }
 
   /* ================= Pantalla: com ho has resolt (desglòs del dia) ================= */
@@ -1367,7 +1537,7 @@
         <div class="game-progress"><p class="kicker">Repte nº ${state.puzzle.number} · ${totalOf(d)} / ${maxTotal()}</p><h1 class="title sm">Com ho has resolt</h1></div>
       </header>
       ${items}
-      <button type="button" class="btn btn-gold" data-action="share">${ICON.share}Comparteix el resultat</button>
+      <button type="button" class="btn btn-gold" data-action="share">${ICON.share}Comparteix el teu resultat</button>
     </section>`;
   }
 
@@ -1435,10 +1605,14 @@
     const got = ACH.filter(a => store.ach[a.id]).length;
     const medals = SV.list.map(s => `<div class="coll${rc[s.key] ? '' : ' none'}" title="${s.name}: ${rc[s.key]} ${rc[s.key] === 1 ? 'dia' : 'dies'}">
         ${SV.medal(s.key, 64, { dim: !rc[s.key] })}<b>×${rc[s.key]}</b><small>${s.name}</small></div>`).join('');
-    const seals = ACH.map(a => {
-      const on = !!store.ach[a.id];
-      return `<li class="seal-item${on ? ' on' : ''}"><span class="seal${on ? ' on' : ''}"><b>${esc(a.g)}</b></span>
-        <span><strong>${esc(a.name)}</strong><small>${esc(a.desc)}</small></span></li>`;
+    const fresh = state.newSeals || [];
+    // Els nous primer, perquè l'estampada es vegi sense haver de baixar
+    const order = ACH.slice().sort((a, b) => (fresh.indexOf(b.id) >= 0) - (fresh.indexOf(a.id) >= 0));
+    let nk = 0;
+    const seals = order.map(a => {
+      const on = !!store.ach[a.id], isNew = fresh.indexOf(a.id) >= 0;
+      return `<li class="seal-item${on ? ' on' : ''}${isNew ? ' new' : ''}"${isNew ? ` style="--d:${(0.25 + 0.35 * nk++).toFixed(2)}s"` : ''}><span class="seal${on ? ' on' : ''}${isNew ? ' stamp' : ''}"><b>${esc(a.g)}</b></span>
+        <span><strong>${esc(a.name)}${isNew ? ' <em class="new-tag">Nou</em>' : ''}</strong><small>${esc(a.desc)}</small></span></li>`;
     }).join('');
     const played = Object.keys(store.days).filter(k => store.days[k].finished).length;
     return `<section class="screen vitrina">
@@ -1448,6 +1622,7 @@
       <div class="vitrina-grid">
         <div class="v-col">
           ${statsCard()}
+          ${progressCard()}
           ${streakCard(false)}
           ${installBtn()}
           <section class="card coll-card" aria-label="Medalles aconseguides">
@@ -1456,7 +1631,7 @@
           </section>
         </div>
         <section class="card seals-card" aria-label="Segells">
-          <div class="coll-head"><p class="kicker">Segells</p><p class="muted small"><b class="chalk">${got}</b> de ${ACH.length}</p></div>
+          <div class="coll-head"><p class="kicker">Segells</p><p class="muted small"><b class="chalk">${got}</b> de ${ACH.length}${fresh.length ? ` · <b class="gold">${fresh.length} ${fresh.length === 1 ? 'nou' : 'nous'}</b>` : ''}</p></div>
           <ul class="seals">${seals}</ul>
         </section>
       </div>
@@ -1623,6 +1798,12 @@
       <p class="kicker">Mode aula · sense temps</p>
       <h1 class="title">Pràctica</h1>
       <p class="lead">Sense rellotge i sense comptar per al rànquing ni per a la ratxa. Ideal per projectar a classe o practicar tant com vulguis.</p>
+      <div class="calc-toggle" role="radiogroup" aria-label="Calculadora">
+        <button type="button" role="radio" aria-checked="${store.calc !== false}" class="calc-opt${store.calc !== false ? ' on' : ''}" data-action="calc" data-calc="1">
+          <b class="calc-g">= 24</b><strong>Amb calculadora</strong><small>Veus el resultat i els punts mentre escrius.</small></button>
+        <button type="button" role="radio" aria-checked="${store.calc === false}" class="calc-opt${store.calc === false ? ' on' : ''}" data-action="calc" data-calc="0">
+          <b class="calc-g">= ?</b><strong>Sense calculadora</strong><small>Càlcul mental: el resultat surt en validar.</small></button>
+      </div>
       <p class="kicker gold">${esc(pr.label)}</p>
       <ol class="card lvl-list aula-list">${rows}</ol>
       <button type="button" class="btn btn-primary" data-action="aula-new">Genera un repte nou</button>
@@ -1768,6 +1949,50 @@
     </section>`;
   }
 
+  /* Evolució: línia de les últimes partides sobre les franges dels cinc savis */
+  function progressCard() {
+    const keys = Object.keys(store.days).filter(k => store.days[k].finished && /^\d{4}-\d{2}-\d{2}$/.test(k)).sort().slice(-20);
+    const head = `<div class="coll-head"><p class="kicker">Evolució</p><p class="muted small">${keys.length > 1 ? 'Últimes ' + keys.length + ' partides' : ''}</p></div>`;
+    if (keys.length < 2) {
+      return `<section class="card prog-card" aria-label="Evolució de les puntuacions">${head}
+        <p class="muted small">${keys.length ? 'Juga un altre dia i aquí veuràs com evoluciona la teva puntuació.' : 'Quan hagis jugat uns quants dies, aquí veuràs la teva evolució.'}</p></section>`;
+    }
+    const MAX = maxTotal(), W = 320, H = 160, L = 8, R = 72, T = 8, Bm = 22;
+    const pw = W - L - R, ph = H - T - Bm;
+    const x = i => L + i * pw / (keys.length - 1);
+    const y = v => T + ph - Math.max(0, Math.min(MAX, v)) / MAX * ph;
+    const bands = SV.list.map(s => {
+      const lo = Math.max(0, s.min - (s.min ? 1 : 0)), hi = Math.min(MAX, s.max);
+      return `<rect x="${L}" y="${y(hi).toFixed(1)}" width="${pw}" height="${(y(lo) - y(hi)).toFixed(1)}" fill="${s.color}" fill-opacity=".07"/>
+        <line x1="${L}" x2="${L + pw}" y1="${y(hi).toFixed(1)}" y2="${y(hi).toFixed(1)}" stroke="${s.color}" stroke-opacity=".18" stroke-width=".6"/>
+        <text x="${L + pw + 8}" y="${((y(lo) + y(hi)) / 2 + 3.5).toFixed(1)}" fill="${s.color}" fill-opacity=".85" font-size="10">${s.name}</text>`;
+    }).join('');
+    const vals = keys.map(k => store.days[k].total);
+    const pts = vals.map((v, i) => x(i).toFixed(1) + ',' + y(v).toFixed(1));
+    const area = `M${x(0).toFixed(1)},${(T + ph).toFixed(1)} L${pts.join(' L')} L${x(vals.length - 1).toFixed(1)},${(T + ph).toFixed(1)} Z`;
+    const dots = vals.map((v, i) => {
+      const r = SV.rankFor(v), last = i === vals.length - 1;
+      return `<circle class="pc-dot" style="--d:${(0.15 + i * 0.9 / vals.length).toFixed(2)}s" cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="${last ? 4.5 : 2.8}" fill="${last ? r.color : '#0B0E12'}" stroke="${r.color}" stroke-width="1.6"><title>${P.prettyDay(keys[i])}: ${v} punts · ${r.name}</title></circle>`;
+    }).join('');
+    const lv = vals[vals.length - 1], lx = x(vals.length - 1), ly = y(lv);
+    const avg = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+    const prev = vals.slice(0, -1), diff = Math.round(lv - prev.reduce((a, b) => a + b, 0) / prev.length);
+    const trend = diff > 0 ? `<b class="gold">+${diff}</b> respecte a la teva mitjana anterior` : diff < 0 ? `<b class="chalk">${diff}</b> respecte a la teva mitjana anterior` : 'igual que la teva mitjana anterior';
+    const svg = `<svg class="prog-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Puntuacions de les últimes ${vals.length} partides. Última: ${lv}. Mitjana: ${avg}.">
+        <defs><linearGradient id="pc-fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#E6B85C" stop-opacity=".28"/><stop offset="1" stop-color="#E6B85C" stop-opacity="0"/></linearGradient></defs>
+        ${bands}
+        <line x1="${L}" x2="${L + pw}" y1="${y(avg).toFixed(1)}" y2="${y(avg).toFixed(1)}" stroke="#ECE8DF" stroke-opacity=".35" stroke-width=".8" stroke-dasharray="3 3"/>
+        <path class="pc-area" d="${area}" fill="url(#pc-fill)"/>
+        <polyline class="pc-line" points="${pts.join(' ')}" pathLength="1" fill="none" stroke="#E6B85C" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+        ${dots}
+        <text class="pc-last" x="${(lx + 3).toFixed(1)}" y="${(ly - 10).toFixed(1)}" text-anchor="end" fill="#ECE8DF" stroke="#0B0E12" stroke-width="4" paint-order="stroke" font-size="11" font-weight="600">${lv}</text>
+        <text x="${L}" y="${H - 6}" fill="#7D8693" font-size="9.5">${P.shortDay(keys[0])} ${+keys[0].slice(8)}</text>
+        <text x="${L + pw}" y="${H - 6}" fill="#7D8693" font-size="9.5" text-anchor="end">${P.shortDay(keys[keys.length - 1])} ${+keys[keys.length - 1].slice(8)}</text>
+      </svg>`;
+    return `<section class="card prog-card" aria-label="Evolució de les puntuacions">${head}${svg}
+      <p class="muted small">Última partida: ${trend} · <span class="pc-avg" aria-hidden="true"></span> mitjana ${avg}</p></section>`;
+  }
+
   // Expressió en text pla (p. ex. «(3 + 4) × 2»)
   function exprText(tokens) {
     return (tokens || []).map(t => t.t === 'num' ? String(t.v) : t.t === 'op' ? ({ '*': '×', '/': '÷', '-': '−' }[t.v] || t.v)
@@ -1896,6 +2121,7 @@
     switch (t.dataset.action) {
       case 'aula-level': beginLevel(+t.dataset.level); break;
       case 'aula-new': randomPractice(); render(); break;
+      case 'calc': store.calc = t.dataset.calc === '1'; save(); track(store.calc ? 'aula_amb_calculadora' : 'aula_sense_calculadora', 'Calculadora aula'); render(); break;
       case 'aula-day': startPractice(t.dataset.day, 'Repte nº ' + P.challengeNumber(t.dataset.day) + ' · ' + P.prettyDay(t.dataset.day)); render(); break;
       case 'install': install(); break;
       case 'challenge': challenge(); break;
@@ -1910,7 +2136,9 @@
       case 'replay': render(); break;
       case 'pause': state.flash++; go('avui'); break;
       case 'contact-send': sendContact(); break;
-      case 'share': share(); break;
+      case 'share': shareResult(); break;
+      case 'copy-msg': copyMessage().then(ok => { t.textContent = ok ? 'Missatge copiat ✓' : 'No s’ha pogut copiar'; }); break;
+      case 'card-download': cardDownload(); break;
       case 'profile': profileModal(); break;
       case 'sound':
         store.sound = store.sound === false; save();
