@@ -1814,7 +1814,7 @@
     const SIZE = [0.84, 0.92, 1, 1.08, 1.16];
     // Òrbites: radi (fracció), inclinació i angle del node, totes diferents; sentits alterns
     const ORB = [[0.40, 74, 0], [0.33, 62, 37], [0.45, 80, 73], [0.29, 56, 112], [0.37, 69, 148]];
-    const W = 1.5; // velocitat angular (rad/s), constant i igual per a tots
+    const W = 2.4; // velocitat angular (rad/s), constant i igual per a tots
     const orbs = SV.list.slice(0, 5).map((s, k) => {
       const [f, inc, node] = ORB[k];
       return { s, R: m * f, inc: inc * Math.PI / 180, node: node * Math.PI / 180, nodeDeg: node,
