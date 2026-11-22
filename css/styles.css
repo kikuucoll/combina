@@ -1145,3 +1145,38 @@ button.chip:hover { border-color: rgba(var(--gold-rgb), .55); box-shadow: 0 0 14
 .tut-target:has(.tut-pop.show) > :not(.tut-pop) { opacity: 0; }
 .tut-pop.show { background: none; }
 .key.submit.guide::after { right: 10%; }
+
+/* ---------- Compte enrere «Preparat, 3, 2, 1» amb els savis en òrbita ---------- */
+body.cd-on .shell, body.cd-on .toast, body.cd-on .banner, body.cd-on .modal { visibility: hidden; }
+.cd { position: fixed; inset: 0; z-index: 50; overflow: hidden; pointer-events: auto; touch-action: none; transition: opacity .35s ease; }
+.cd.out { opacity: 0; pointer-events: none; }
+.cd-orbits { position: absolute; inset: 0; z-index: 0; }
+.cd-orbits ellipse { stroke-opacity: .08; stroke-width: .8; }
+.cd-sat { position: absolute; left: 0; top: 0; will-change: transform, opacity; }
+.cd-sat .medal { display: block; }
+.cd-num-wrap {
+  position: absolute; inset: 0; z-index: 4; display: flex; align-items: center; justify-content: center;
+  pointer-events: none; animation: cd-levitate 2.6s ease-in-out infinite;
+}
+.cd-num {
+  font-family: var(--serif); font-weight: 500; line-height: 1; color: var(--chalk);
+  font-size: clamp(140px, 42vmin, 280px); font-variant-numeric: lining-nums;
+  text-shadow: 0 0 24px rgba(236, 232, 223, .35), 0 0 60px rgba(236, 232, 223, .12);
+  opacity: 0;
+}
+.cd-num.word { font-style: italic; font-weight: 400; font-size: clamp(46px, 13vmin, 96px); letter-spacing: .01em; }
+.cd-num.last { color: var(--gold); text-shadow: 0 0 26px rgba(230, 184, 92, .55), 0 0 70px rgba(230, 184, 92, .25); }
+.cd-num.in { animation: cd-pop 1s cubic-bezier(.2, .8, .2, 1) forwards; }
+@keyframes cd-pop {
+  0% { opacity: 0; transform: scale(.55); filter: blur(6px); }
+  22% { opacity: 1; transform: scale(1.04); filter: blur(0); }
+  70% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.18); filter: blur(3px); }
+}
+@keyframes cd-levitate { 0%, 100% { transform: translateY(-7px); } 50% { transform: translateY(7px); } }
+@media (prefers-reduced-motion: reduce) {
+  .cd-sat { display: none; }
+  .cd-num-wrap { animation: none; }
+  .cd-num.in { animation: cd-fade .65s ease forwards; }
+  @keyframes cd-fade { 0% { opacity: 0; } 25%, 80% { opacity: 1; } 100% { opacity: 0; } }
+}

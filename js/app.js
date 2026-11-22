@@ -1786,11 +1786,95 @@
     }).then(() => { d.submitted = true; save(); }).catch(e => console.warn('No s’ha pogut desar la puntuació', e));
   }
 
-  function play() {
+  function nextLevel() {
     const d = day();
-    const next = state.puzzle.levels.findIndex((_, i) => !(d.levels[i] && d.levels[i].done));
+    return state.puzzle.levels.findIndex((_, i) => !(d.levels[i] && d.levels[i].done));
+  }
+  function play() {
+    const next = nextLevel();
     if (next < 0) return go('resultat');
-    beginLevel(next);
+    const st = day().levels[next];
+    // Un nivell que ja corre (el rellotge no s'atura) es reprèn sense compte enrere
+    if (state.practice || (st && st.startAt)) return beginLevel(next);
+    countdown(() => { const n = nextLevel(); if (n < 0) go('resultat'); else beginLevel(n); });
+  }
+
+  /* ================= Compte enrere: «Preparat, 3, 2, 1» =================
+   * Els cinc savis orbiten com electrons, cadascun en un pla inclinat diferent,
+   * i s'acceleren fins a gairebé desaparèixer just quan arrenca el repte. */
+  let cdBusy = false;
+  function countdown(done) {
+    if (cdBusy) return;
+    cdBusy = true;
+    const steps = ['Preparat', '3', '2', '1'];
+    const STEP = reduceMotion ? 650 : 1000, T = STEP * steps.length;
+    const vw = window.innerWidth, vh = window.innerHeight, m = Math.min(vw, vh);
+    const size = Math.round(Math.max(38, Math.min(62, m * 0.12)));
+    // Òrbites: radi (fracció), inclinació i angle del node, totes diferents; sentits alterns
+    const ORB = [[0.40, 74, 0], [0.33, 62, 37], [0.45, 80, 73], [0.29, 56, 112], [0.37, 69, 148]];
+    const orbs = SV.list.slice(0, 5).map((s, k) => {
+      const [f, inc, node] = ORB[k];
+      return { s, R: m * f, inc: inc * Math.PI / 180, node: node * Math.PI / 180, nodeDeg: node,
+        ph: k * 1.37 + Math.random() * 0.6, dir: k % 2 ? -1 : 1, w0: 0.9 + k * 0.12 };
+    });
+    const el = document.createElement('div');
+    el.className = 'cd';
+    el.innerHTML = `<svg class="cd-orbits" width="${vw}" height="${vh}" viewBox="0 0 ${vw} ${vh}" aria-hidden="true">${orbs.map(o =>
+        `<ellipse cx="${vw / 2}" cy="${vh / 2}" rx="${o.R.toFixed(1)}" ry="${(o.R * Math.cos(o.inc)).toFixed(1)}" transform="rotate(${o.nodeDeg} ${vw / 2} ${vh / 2})" fill="none" stroke="${o.s.color}"/>`).join('')}</svg>
+      ${orbs.map(o => `<div class="cd-sat" aria-hidden="true">${SV.medal(o.s.key, size)}</div>`).join('')}
+      <div class="cd-num-wrap"><div class="cd-num" role="status" aria-live="assertive"></div></div>`;
+    document.body.appendChild(el);
+    document.body.classList.add('cd-on');
+    const sats = el.querySelectorAll('.cd-sat'), rings = el.querySelectorAll('.cd-orbits ellipse'), num = el.querySelector('.cd-num');
+    const cx = vw / 2, cy = vh / 2, half = size / 2;
+    const ratio = 46; // velocitat final / inicial
+    let elapsed = 0, last = performance.now(), shown = -1, ended = false;
+
+    const frame = now => {
+      // Si la pestanya s'amaga, el compte enrere s'atura (dt limitat) en lloc de saltar-se
+      const dt = Math.max(0, Math.min(50, now - last));
+      elapsed += dt; last = now;
+      const k = Math.min(1, elapsed / T);
+      const idx = Math.min(steps.length - 1, Math.floor(elapsed / STEP));
+      if (idx !== shown) {
+        shown = idx;
+        num.textContent = steps[idx];
+        num.className = 'cd-num' + (idx === 0 ? ' word' : '') + (idx === steps.length - 1 ? ' last' : '');
+        void num.offsetWidth; num.classList.add('in');
+        sfx('count', idx);
+      }
+      if (!reduceMotion) {
+        // Acceleració exponencial: comença tranquil i acaba disparat
+        const w = Math.exp(Math.log(ratio) * Math.pow(k, 1.5));
+        const fade = k < 0.72 ? 0 : (k - 0.72) / 0.28; // 0 → 1 al final
+        const glow = Math.pow(k, 3);
+        orbs.forEach((o, i) => {
+          o.ph += o.dir * o.w0 * w * dt / 1000;
+          const x0 = o.R * Math.cos(o.ph), y0 = o.R * Math.sin(o.ph);
+          const y1 = y0 * Math.cos(o.inc), z = y0 * Math.sin(o.inc);
+          const x = x0 * Math.cos(o.node) - y1 * Math.sin(o.node), y = x0 * Math.sin(o.node) + y1 * Math.cos(o.node);
+          const sc = 1 + 0.32 * z / o.R;
+          const sat = sats[i];
+          sat.style.transform = `translate(${(cx + x - half).toFixed(1)}px, ${(cy + y - half).toFixed(1)}px) scale(${sc.toFixed(3)})`;
+          sat.style.zIndex = z < 0 ? 1 : 3;
+          sat.style.opacity = ((0.55 + 0.45 * (sc - 0.68) / 0.64) * (1 - 0.92 * fade)).toFixed(3);
+          sat.style.filter = fade > 0 ? `blur(${(fade * 3.5).toFixed(2)}px)` : '';
+          // L'òrbita s'encén com un rastre a mesura que el savi s'hi esvaeix
+          rings[i].style.strokeOpacity = (0.08 + 0.6 * glow).toFixed(3);
+          rings[i].style.strokeWidth = (0.8 + 2.2 * glow).toFixed(2);
+        });
+      }
+      if (k < 1) return requestAnimationFrame(frame);
+      if (ended) return;
+      ended = true;
+      sfx('count', -1);
+      document.body.classList.remove('cd-on');
+      cdBusy = false;
+      done();
+      el.classList.add('out');
+      setTimeout(() => el.remove(), 380);
+    };
+    requestAnimationFrame(frame);
   }
 
   function openTutorial() {

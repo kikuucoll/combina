@@ -74,6 +74,14 @@
     if (i >= 4) [3, 4].forEach(function (m, k) { note(base * m, 0.35 + k * 0.1, 0.6, 0.08, 'triangle'); });
   };
 
+  /* Compte enrere: 0 = «Preparat», 1–3 = «3, 2, 1» (cada cop més agut), -1 = arrenca */
+  api.count = function (i) {
+    if (i < 0) { [783.99, 1174.66, 1567.98].forEach(function (f) { note(f, 0, 0.5, 0.22, 'sine'); }); return; }
+    var f = [392, 587.33, 659.25, 783.99][Math.max(0, Math.min(3, i))];
+    note(f, 0, i === 0 ? 0.35 : 0.16, 0.32, 'triangle');
+    note(f * 2, 0, 0.08, 0.06, 'sine');
+  };
+
   /* Punts d'una ronda que no arriben a 100: tancament suau */
   api.settle = function () { note(659.25, 0, 0.25, 0.25, 'sine'); note(987.77, 0.06, 0.3, 0.18, 'sine'); };
 
