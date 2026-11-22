@@ -39,7 +39,10 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'avatar', 'photo'])
         && validName(request.resource.data)
         && validAvatar(request.resource.data);
-      allow delete: if false;
+      // Dret de supressió: el mateix jugador, només quan el seu perfil desapareix en la mateixa operació
+      // (o ja no hi és). Així no es pot esborrar una puntuació per tornar a jugar el dia.
+      allow delete: if signedAs(uid)
+        && !existsAfter(/databases/$(database)/documents/players/$(uid));
     }
 
     // Perfil públic i acumulat del jugador (rànquing total).
@@ -78,7 +81,8 @@ service cloud.firestore {
                 && (request.resource.data.best == resource.data.get('best', 0)
                     || request.resource.data.best == newScore().total)));
 
-      allow delete: if false;
+      // Dret de supressió: només el mateix jugador
+      allow delete: if signedAs(uid);
     }
 
     // Progrés privat (ratxa, segells, dies jugats): només el propi jugador
@@ -88,7 +92,7 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['data', 'at'])
         && request.resource.data.data is string
         && request.resource.data.data.size() < 900000;
-      allow delete: if false;
+      allow delete: if signedAs(uid);
     }
   }
 }

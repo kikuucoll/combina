@@ -13,9 +13,12 @@
   var enabled = !!(cfg.firebase && global.firebase);
   var auth = null, db = null, user = null, listeners = [], lite = null;
 
-  function shortName(name) {
-    var p = String(name || 'Jugador').trim().split(/\s+/);
-    return p.length > 1 ? p[0] + ' ' + p[p.length - 1].charAt(0) + '.' : p[0];
+  /* Àlies per defecte: un savi i un número fix derivat de l'uid (mai el nom real del compte de Google) */
+  var SAVIS = ['Pitàgores', 'Hipàtia', 'Arquimedes', 'Noether', 'Gauss', 'Euclides', 'Fibonacci', 'Lovelace'];
+  function alias(uid) {
+    var h = 0, s = String(uid || '');
+    for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    return SAVIS[h % SAVIS.length] + ' ' + (100 + (Math.floor(h / SAVIS.length) % 900));
   }
   function ts() { return global.firebase.firestore.FieldValue.serverTimestamp(); }
   function notify() { listeners.forEach(function (fn) { fn(user); }); }
@@ -29,7 +32,7 @@
         if (!u) { user = null; return notify(); }
         // Convidat amb nom (inici anònim): surt al rànquing però no té compte de Google
         var prevName = user && user.uid === u.uid ? user.name : '';
-        user = { uid: u.uid, anon: !!u.isAnonymous, name: u.isAnonymous ? (prevName || 'Convidat') : shortName(u.displayName),
+        user = { uid: u.uid, anon: !!u.isAnonymous, name: u.isAnonymous ? (prevName || 'Convidat') : alias(u.uid),
           photo: u.photoURL || '', avatar: '' };
         // Perfil personalitzat (nom i avatar), si n'hi ha
         db.collection('players').doc(u.uid).get().then(function (d) {
@@ -73,7 +76,7 @@
         return cur.linkWithPopup(provider).then(function (r) {
           // Mateix uid: es manté el nom triat; només deixa de ser convidat (onAuthStateChanged no salta)
           var u = r.user;
-          user = { uid: u.uid, anon: false, name: (user && user.name) || shortName(u.displayName),
+          user = { uid: u.uid, anon: false, name: (user && user.name) || alias(u.uid),
             photo: u.photoURL || '', avatar: (user && user.avatar) || '' };
           notify();
           return r;
@@ -92,6 +95,29 @@
     },
 
     signOut: function () { return enabled ? auth.signOut() : Promise.resolve(); },
+
+    /* Dret de supressió (art. 17 RGPD): esborra el perfil, totes les puntuacions, el progrés desat
+     * i el mateix compte de Firebase. dayKeys = tots els dies en què podria haver jugat.
+     * Les regles només deixen esborrar una puntuació si el perfil s'esborra en la mateixa operació
+     * o ja no existeix (així no es pot «tornar a jugar» un dia esborrant-ne només la puntuació). */
+    deleteAccount: function (dayKeys) {
+      if (!enabled || !auth.currentUser) return Promise.reject(new Error('No hi ha cap sessió iniciada'));
+      var u = auth.currentUser, uid = u.uid;
+      var refs = [db.collection('players').doc(uid), db.collection('saves').doc(uid)]
+        .concat((dayKeys || []).map(function (k) { return scoresOf(k).doc(uid); }));
+      var chunks = [];
+      for (var i = 0; i < refs.length; i += 400) chunks.push(refs.slice(i, i + 400));
+      // Google demana haver entrat fa poc per esborrar un compte: es confirma primer (dins del clic,
+      // perquè el navegador no bloquegi la finestra) i després s'esborra tot
+      var pre = u.isAnonymous ? Promise.resolve()
+        : u.reauthenticateWithPopup(new global.firebase.auth.GoogleAuthProvider());
+      return pre.then(function () {
+        return chunks.reduce(function (p, list) {
+          return p.then(function () { var b = db.batch(); list.forEach(function (r) { b.delete(r); }); return b.commit(); });
+        }, Promise.resolve());
+      }).then(function () { return u.delete(); })
+        .then(function () { user = null; notify(); });
+    },
 
     /* Desa el resultat del dia (només una vegada per dia) */
     submitDay: function (dayKey, result) {

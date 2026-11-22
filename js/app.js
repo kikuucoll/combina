@@ -34,6 +34,93 @@
     if (cloud.ready && B.user) { clearTimeout(cloud.timer); cloud.timer = setTimeout(pushCloud, 1500); }
   }
 
+  /* ================= Protecció de dades: edat i consentiment =================
+   * Abans d'enviar cap dada al servidor (Google o rànquing amb àlies) es pregunta l'edat, amb
+   * botons neutres. Amb menys de C.minAge anys (14, art. 7 LOPDGDD) es juga igual, però tot
+   * queda en aquest dispositiu. L'acceptació (versió i data) es desa a store.consent, que viatja
+   * amb el progrés privat al núvol: és la prova del consentiment. */
+  const MIN_AGE = C.minAge || 14;
+  function consentOk() { return store.age === 'adult' && !!store.consent && store.consent.v === C.policyVersion; }
+  function online() { return B.enabled && store.age !== 'minor'; }
+  function privacyLink(text) { return `<a class="btn-text inline" href="privacitat.html" target="_blank" rel="noopener">${text || 'Privadesa'}</a>`; }
+  function withAge(fn) {
+    if (store.age === 'minor') return minorModal();
+    if (consentOk()) return fn();
+    state.pendingAge = fn;
+    ageModal();
+  }
+  function ageModal(existing) {
+    openModal(`<p class="kicker gold">Abans de continuar</p>
+      <h2 class="title sm">Quants anys tens?</h2>
+      <div class="age-row">
+        <button type="button" class="btn btn-ghost" data-action="age" data-age="minor">Menys de ${MIN_AGE}</button>
+        <button type="button" class="btn btn-ghost" data-action="age" data-age="adult">${MIN_AGE} o més</button>
+      </div>
+      <p class="small muted">Si en tens ${MIN_AGE} o més, en continuar acceptes la ${privacyLink('política de privadesa')}.
+        Al rànquing només es veuen el teu àlies i els teus punts, mai el teu correu.</p>
+      ${existing ? '' : '<button type="button" class="btn-text" data-action="close-modal">Ara no</button>'}`);
+  }
+  function minorModal(deleted) {
+    openModal(`<h2 class="title sm">Pots jugar igual!</h2>
+      <p class="lead">El repte diari, la ratxa, els segells i la vitrina són tots teus i es guarden en aquest dispositiu.</p>
+      <p class="small muted">Els comptes i el rànquing públic són per a jugadors de ${MIN_AGE} anys o més.
+        ${deleted ? 'Per això hem esborrat el compte que tenies al rànquing.' : ''}</p>
+      <button type="button" class="btn btn-primary" data-action="close-modal">Entesos</button>`);
+  }
+  function chooseAge(age) {
+    const fn = state.pendingAge;
+    state.pendingAge = null;
+    store.age = age;
+    if (age === 'adult') store.consent = { v: C.policyVersion, at: new Date().toISOString() };
+    save();
+    closeModal();
+    track(age === 'adult' ? 'edat_14_o_mes' : 'edat_menys_14', 'Porta d’edat');
+    if (age === 'minor') {
+      // Si ja tenia compte, no podem guardar les seves dades: s'esborren (el progrés local es manté)
+      if (B.user) return eraseAccount(false).then(() => minorModal(true), () => minorModal());
+      render();
+      return minorModal();
+    }
+    if (B.user) pushCloud();
+    if (fn) fn(); else render();
+  }
+  // Jugadors que ja tenien compte d'abans de la política (o d'una versió anterior): es pregunta un cop
+  function askExistingConsent() {
+    if (!B.user || consentOk()) return;
+    if (state.screen === 'joc' || !modalEl.hidden) return setTimeout(askExistingConsent, 4000);
+    if (store.age === 'minor') return eraseAccount(false).then(() => minorModal(true), () => {});
+    ageModal(true);
+  }
+
+  /* Dret de supressió: esborra compte, àlies, puntuacions i progrés del núvol */
+  function allDayKeys() {
+    const keys = new Set(Object.keys(store.days));
+    for (let k = C.startDate, i = 0; k <= P.dayKey() && i < 5000; k = P.addDays(k, 1), i++) keys.add(k);
+    return [...keys];
+  }
+  function deleteModal() {
+    openModal(`<h2 class="title sm">Esborrar el compte</h2>
+      <p class="lead">S'esborraran el teu compte, el teu àlies, totes les teves puntuacions del rànquing i el progrés desat al núvol. No es pot desfer.</p>
+      <label class="check"><input type="checkbox" id="del-local"> Esborra també el progrés d'aquest dispositiu</label>
+      <button type="button" class="btn btn-primary btn-danger" data-action="delete-confirm">Esborra-ho tot</button>
+      <button type="button" class="btn-text" data-action="close-modal">Cancel·la</button>`);
+  }
+  function eraseAccount(local) {
+    clearTimeout(cloud.timer); cloud.ready = false;
+    return B.deleteAccount(allDayKeys()).then(() => {
+      track('compte_esborrat', 'Compte esborrat');
+      if (local) { try { localStorage.removeItem(KEY); } catch (e) { /* ignora */ } location.reload(); return; }
+      store.askedDay = state.dayKey; save();
+      render();
+    });
+  }
+  function confirmDelete(btn) {
+    const local = !!(document.getElementById('del-local') || {}).checked;
+    if (btn) btn.disabled = true;
+    eraseAccount(local).then(() => { if (!local) { closeModal(); toast('Fet. Hem esborrat el teu compte i les teves dades.'); } })
+      .catch(e => { if (btn) btn.disabled = false; toast('No s’ha pogut esborrar: ' + ((e && e.message) || e)); });
+  }
+
   /* ================= Progrés al núvol ================= */
   const cloud = { ready: false, timer: null };
   function pushCloud() {
@@ -60,6 +147,8 @@
     store.bestStreak = Math.max(store.bestStreak, r.bestStreak || 0);
     store.seenHelp = store.seenHelp || !!r.seenHelp;
     if (r.lastFreezeDay && !(store.lastFreezeDay >= r.lastFreezeDay)) store.lastFreezeDay = r.lastFreezeDay;
+    // Consentiment de privadesa donat en un altre dispositiu (si aquí no s'ha dit res d'edat)
+    if (!store.age && r.age === 'adult' && r.consent) { store.age = 'adult'; store.consent = r.consent; }
     return true;
   }
 
@@ -339,7 +428,7 @@
       : u ? (u.photo ? `<img src="${esc(u.photo)}" alt="" referrerpolicy="no-referrer">` : esc(initials(u.name))) : 'Tu';
     const fr = store.freezes ? `<span class="chip-sep"></span>${ICON.shield}${store.freezes}` : '';
     // Convidat: accés discret per guardar el progrés amb Google
-    const saveBtn = B.enabled && !state.user ? `<button type="button" class="chip chip-save" data-action="signin" title="Inicia sessió amb Google per guardar el progrés">${ICON.google}<span>Guarda el progrés</span></button>` : '';
+    const saveBtn = online() && !state.user ? `<button type="button" class="chip chip-save" data-action="signin" title="Inicia sessió amb Google per guardar el progrés">${ICON.google}<span>Guarda el progrés</span></button>` : '';
     return `<header class="topbar">
       ${wordmark}
       <div class="topbar-right">
@@ -405,9 +494,10 @@
       <div class="cta-stack">
         ${challengeCard()}
         <button type="button" class="btn btn-hero" data-action="guest">Juga ara <span aria-hidden="true">→</span></button>
-        ${B.enabled ? `<button type="button" class="btn-text" data-action="signin">${ICON.google}<span>o inicia sessió amb Google per guardar el progrés</span></button>` : ''}
+        ${online() ? `<button type="button" class="btn-text" data-action="signin">${ICON.google}<span>o inicia sessió amb Google per guardar el progrés</span></button>` : ''}
         <div class="countdown-row"><span class="kicker">Nou repte en</span><span class="countdown big" data-countdown></span></div>
       </div>
+      <p class="legal-line">${privacyLink('Privadesa i avís legal')}</p>
     </section>`;
   }
 
@@ -496,12 +586,12 @@
 
   /* ================= Convidats: el nom al rànquing sense compte ================= */
   function nameCard(total) {
-    if (!B.enabled || B.user) return '';
+    if (!online() || B.user) return '';
     return `<form class="card name-card" id="name-card" onsubmit="return false">
       <p class="kicker gold">Surt al rànquing d'avui</p>
-      <p class="small">Escriu el teu nom i els teus <b class="chalk">${total} punts</b> apareixeran a la llista de jugadors.</p>
+      <p class="small">Tria un àlies (no el teu nom complet) i els teus <b class="chalk">${total} punts</b> apareixeran a la llista de jugadors.</p>
       <div class="name-row">
-        <input class="guest-name" type="text" maxlength="20" autocomplete="nickname" spellcheck="false" placeholder="El teu nom" aria-label="El teu nom">
+        <input class="guest-name" type="text" maxlength="20" autocomplete="nickname" spellcheck="false" placeholder="Un àlies" aria-label="Un àlies (no el teu nom complet)">
         <button type="button" class="btn btn-primary btn-sm" data-action="guest-join">Desa</button>
       </div>
       <button type="button" class="btn-text inline" data-action="signin">${ICON.google}<span>o entra amb Google per guardar també la ratxa</span></button>
@@ -512,7 +602,10 @@
     const box = btn && (btn.closest('.name-row') || btn.closest('form'));
     const inp = (box && box.querySelector('.guest-name')) || document.querySelector('.guest-name');
     const name = (inp ? inp.value : '').replace(/\s+/g, ' ').trim();
-    if (!/^[\p{L}\p{N} .'’_-]{2,20}$/u.test(name)) return toast('El nom ha de tenir de 2 a 20 lletres o xifres.');
+    if (!/^[\p{L}\p{N} .'’_-]{2,20}$/u.test(name)) return toast('L’àlies ha de tenir de 2 a 20 lletres o xifres.');
+    withAge(() => doGuestJoin(name, btn));
+  }
+  function doGuestJoin(name, btn) {
     if (btn) btn.disabled = true;
     // Avatar aleatori (símbol i color), que després es pot canviar al perfil
     const av = Math.floor(Math.random() * AV_GLYPHS.length) + '.' + Math.floor(Math.random() * SV.list.length);
@@ -541,7 +634,7 @@
     const r = state.reward;
     state.reward = null;
     // Un cop al dia, en acabar el repte (el moment de màxima recompensa)
-    if (!r || !B.enabled || state.user || store.askedDay === state.dayKey) return;
+    if (!r || !online() || state.user || store.askedDay === state.dayKey) return;
     if (state.anon) return;              // ja surt al rànquing amb el seu nom: no l'atabalem cada dia
     store.askedDay = state.dayKey; save();
     const kicker = r.record ? 'Rècord personal' : r.first ? 'Primer repte completat'
@@ -553,9 +646,9 @@
   function nameModal(kicker, total) {
     openModal(`${kicker ? `<p class="kicker gold">${esc(kicker)}</p>` : ''}
       <h2 class="title sm">Has fet ${total} punts!</h2>
-      <p class="lead">Escriu el teu nom i sortiràs al rànquing d'avui.</p>
+      <p class="lead">Tria un àlies i sortiràs al rànquing d'avui.</p>
       <form class="name-row" onsubmit="return false">
-        <input class="guest-name" type="text" maxlength="20" autocomplete="nickname" spellcheck="false" placeholder="El teu nom" aria-label="El teu nom">
+        <input class="guest-name" type="text" maxlength="20" autocomplete="nickname" spellcheck="false" placeholder="Un àlies" aria-label="Un àlies (no el teu nom complet)">
         <button type="button" class="btn btn-primary btn-sm" data-action="guest-join">Desa</button>
       </form>
       <div class="or-line"><span>o bé</span></div>
@@ -567,7 +660,7 @@
 
   // Targeta fixa per als convidats (resultat i rànquing)
   function saveCard(text) {
-    if (!B.enabled || state.user) return '';
+    if (!online() || state.user) return '';
     return `<div class="card notice save-card"><p class="small">${text}</p>
       <button type="button" class="btn btn-primary btn-sm" data-action="signin">${ICON.google}Continua amb Google</button></div>`;
   }
@@ -1114,7 +1207,7 @@
 
   // Primer nivell superat d'un convidat que encara no ha completat cap dia: recordatori discret
   function firstLevelNudge(i, st) {
-    if (!B.enabled || state.user || state.practice || i !== 0 || !(st.points > 0)) return '';
+    if (!online() || state.user || state.practice || i !== 0 || !(st.points > 0)) return '';
     if (Object.keys(store.days).some(k => store.days[k].finished)) return '';
     return `<p class="nudge-line step" style="--d:1.2s">Bon començament! <button type="button" class="btn-text inline" data-action="signin">${ICON.google}<span>Guarda el progrés amb Google</span></button></p>`;
   }
@@ -1660,7 +1753,7 @@
 
   /* ================= Pantalla: sobre mi i contacte ================= */
   function aboutLink() {
-    return `<button type="button" class="btn-text about-link" data-go="sobre">Contacte · Envia'm una idea</button>`;
+    return `<p class="about-links"><button type="button" class="btn-text about-link" data-go="sobre">Contacte · Envia'm una idea</button> · ${privacyLink()}</p>`;
   }
 
   function screenSobre() {
@@ -1671,7 +1764,7 @@
       <div class="card about-card">
         <p class="about-hi">Hola! Em dic <b class="gold">Kiku</b> i sóc mestre de primària.</p>
         <p><b class="chalk">COMBINA ≈</b> va néixer a l'aula: volia que practicar la jerarquia d'operacions i el càlcul fos un joc d'escalfament diari i no una fitxa més. Ara hi podeu jugar alumnes, famílies, docents i altres curiosos.</p>
-        <p class="muted">És gratuït, sense anuncis i sense galetes de seguiment. El faig a estones, i cada comentari m'ajuda a millorar-lo. <b class="chalk">T'hi animes?</b></p>
+        <p class="muted">És gratuït, sense anuncis i sense galetes de seguiment (${privacyLink('com tractem les dades')}). El faig a estones, i cada comentari m'ajuda a millorar-lo. <b class="chalk">T'hi animes?</b></p>
       </div>
       <section class="card contact-card" aria-label="Formulari de contacte">
         <p class="kicker gold">Escriu-me</p>
@@ -1681,12 +1774,8 @@
             <select name="tipus"><option>Idea de millora</option><option>He trobat un error</option><option>L'utilitzo a l'aula</option><option>Altres</option></select></label>
           <label class="field"><span class="kicker">Missatge</span>
             <textarea name="missatge" rows="5" maxlength="3000" required placeholder="Escriu aquí…"></textarea></label>
-          <label class="field"><span class="kicker">Nom (opcional)</span>
-            <input name="nom" type="text" maxlength="60" autocomplete="name"></label>
-          <label class="field"><span class="kicker">Correu (opcional, si vols resposta)</span>
-            <input name="correu" type="email" maxlength="120" autocomplete="email" inputmode="email"></label>
-          <input type="text" name="_honey" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
-          <button type="button" class="btn btn-primary" data-action="contact-send">Envia el missatge</button>
+          <button type="button" class="btn btn-primary" data-action="contact-send">Obre el correu per enviar-lo</button>
+          <p class="muted small">S'obrirà la teva aplicació de correu amb el missatge preparat, per a <b class="chalk">${esc(C.contactEmail)}</b>. Si tens menys de ${MIN_AGE} anys, demana a un adult que l'enviï per tu.</p>
           <p class="muted small" id="contact-status" role="status"></p>
         </form>` : '<p class="muted small">El formulari de contacte encara no està configurat.</p>'}
       </section>
@@ -1694,26 +1783,18 @@
     </section>`;
   }
 
+  // Sense serveis externs: obre l'aplicació de correu de qui escriu amb el missatge preparat
   function sendContact() {
     const f = document.getElementById('contact'), out = document.getElementById('contact-status');
     if (!f || !C.contactEmail) return;
     const v = n => (f.elements[n] ? f.elements[n].value : '').trim();
     if (v('_honey')) return;
     if (v('missatge').length < 3) { out.textContent = 'Escriu el missatge abans d’enviar-lo.'; return; }
-    const mail = v('correu');
-    if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) { out.textContent = 'Revisa el correu (o deixa’l buit).'; return; }
-    const btn = f.querySelector('[data-action="contact-send"]');
-    btn.disabled = true; out.textContent = 'Enviant…';
-    const body = { _subject: 'combina ≈ · ' + v('tipus'), _template: 'table', _captcha: 'false',
-      tipus: v('tipus'), missatge: v('missatge'), nom: v('nom') || '—', repte: 'nº ' + state.puzzle.number };
-    if (mail) { body.correu = mail; body._replyto = mail; }
-    fetch('https://formsubmit.co/ajax/' + encodeURIComponent(C.contactEmail), {
-      method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body)
-    }).then(r => r.json().then(j => ({ ok: r.ok, j }))).then(({ ok, j }) => {
-      if (!ok || String(j.success) === 'false') throw new Error(j.message || 'error');
-      track('contacte_enviat', 'Missatge de contacte');
-      f.innerHTML = '<p class="contact-ok"><b class="gold">Gràcies!</b> He rebut el teu missatge.</p>';
-    }).catch(() => { btn.disabled = false; out.textContent = 'No s’ha pogut enviar. Torna-ho a provar d’aquí a una estona.'; });
+    const subject = 'combina ≈ · ' + v('tipus');
+    const body = v('missatge') + '\n\n— Repte nº ' + state.puzzle.number;
+    track('contacte_obert', 'Missatge de contacte');
+    location.href = 'mailto:' + C.contactEmail + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+    out.textContent = 'Si no s’ha obert cap aplicació, escriu directament a ' + C.contactEmail + '.';
   }
 
   /* ================= Pantalla: vitrina ================= */
@@ -1950,7 +2031,8 @@
       state.pf = { gi: av.gi, ci: av.ci };
       html += `<div class="prof-head"><span id="pf-prev"></span><div><b id="pf-show">${esc(me.name)}</b><small>Així et veuran al rànquing</small></div></div>
         <label class="field"><span class="kicker">Nom públic</span>
-          <input id="pf-name" type="text" maxlength="20" autocomplete="nickname" spellcheck="false" value="${esc(me.name)}"></label>
+          <input id="pf-name" type="text" maxlength="20" autocomplete="nickname" spellcheck="false" value="${esc(me.name)}">
+          <small class="muted">És un àlies: no hi posis el teu nom complet.</small></label>
         <div class="field"><span class="kicker">Avatar</span>
           <div class="av-grid">${AV_GLYPHS.map((g, k) => `<button type="button" data-av-g="${k}" aria-label="Símbol ${g}">${g}</button>`).join('')}</div>
           <div class="av-colors">${SV.list.map((s, k) => `<button type="button" data-av-c="${k}" style="background:${s.color}" aria-label="Color ${s.colorName}"></button>`).join('')}</div>
@@ -1960,13 +2042,17 @@
         ${stats}
         ${me.anon ? `<p class="muted small">Jugues com a convidat: la ratxa i els segells només es guarden en aquest navegador.</p>
           <button type="button" class="btn btn-ghost" data-action="signin">${ICON.google}Guarda-ho tot amb Google</button>`
-          : '<button type="button" class="btn-text" data-action="signout">Tanca la sessió</button>'}${aboutLink()}`;
+          : '<button type="button" class="btn-text" data-action="signout">Tanca la sessió</button>'}
+        <button type="button" class="btn-text danger" data-action="delete-account">Esborra el meu compte i les meves dades</button>
+        ${aboutLink()}`;
       openModal(html);
       paintProfile();
       return;
     }
-    if (B.enabled) {
-      html += `<p class="lead">Ara jugues com a convidat: el progrés només es guarda en aquest navegador. Acaba el repte d'avui i escriu el teu nom per sortir al rànquing, o inicia sessió amb Google per no perdre’l mai.</p>
+    if (B.enabled && store.age === 'minor') {
+      html += `<p class="lead">Jugues sense compte: el teu progrés es guarda en aquest dispositiu. Els comptes i el rànquing públic són per a jugadors de ${MIN_AGE} anys o més.</p>`;
+    } else if (B.enabled) {
+      html += `<p class="lead">Ara jugues com a convidat: el progrés només es guarda en aquest navegador. Acaba el repte d'avui i tria un àlies per sortir al rànquing, o inicia sessió amb Google per no perdre’l mai.</p>
         <button type="button" class="btn btn-primary" data-action="signin">${ICON.google}Continua amb Google</button>`;
     } else {
       html += '<p class="lead">Mode local: les partides es guarden en aquest dispositiu. El rànquing compartit s’activa quan es configura Firebase.</p>';
@@ -2062,7 +2148,7 @@
         ${cell('Mitjana', s.played ? s.avg : '—')}${cell('Rang Gauss', s.played ? s.gaussPct + ' %' : '—')}
         ${cell('Millor ratxa', s.bestStreak)}${cell('Segells', ACH.filter(a => store.ach[a.id]).length + '/' + ACH.length)}
       </div>
-      ${B.enabled && !state.user ? '<p class="muted small">Ara només es guarden en aquest navegador. <button type="button" class="btn-text inline" data-action="signin">Sincronitza-les amb Google</button></p>' : ''}
+      ${online() && !state.user ? '<p class="muted small">Ara només es guarden en aquest navegador. <button type="button" class="btn-text inline" data-action="signin">Sincronitza-les amb Google</button></p>' : ''}
     </section>`;
   }
 
@@ -2245,7 +2331,10 @@
       case 'profile-save': saveProfile(); break;
       case 'guest-join': guestJoin(t); break;
       case 'guest': store.guest = true; save(); if (!store.seenHelp) openTutorial(); else go('avui'); break;
-      case 'signin': closeModal(); B.signIn().catch(err => toast('No s’ha pogut iniciar la sessió: ' + (err.message || err))); break;
+      case 'signin': closeModal(); withAge(() => B.signIn().catch(err => toast('No s’ha pogut iniciar la sessió: ' + (err.message || err)))); break;
+      case 'age': chooseAge(t.dataset.age); break;
+      case 'delete-account': deleteModal(); break;
+      case 'delete-confirm': confirmDelete(t); break;
       case 'signout': closeModal(); B.signOut(); break;
       case 'play': play(); break;
       case 'start': startLevel(); break;
@@ -2383,6 +2472,7 @@
         if (r && state.screen && state.screen !== 'entrada' && !playing) render();
       }).catch(e => { console.warn('No s’ha pogut llegir el progrés del núvol', e); submitDay(); });
     }
+    if (u) setTimeout(askExistingConsent, 1500);
     if (!state.screen) firstScreen();
     else if (state.screen === 'entrada' && u) {
       if (!store.seenHelp) openTutorial(); else resumeOrHome();

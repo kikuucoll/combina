@@ -1,9 +1,9 @@
 /* Service worker de «combina ≈»: permet instal·lar l'app i obrir-la sense connexió.
  * Estratègia «primer la xarxa»: sempre es carrega la versió més nova si hi ha internet;
  * la còpia desada només s'usa sense connexió. Només desa fitxers del mateix lloc. */
-var CACHE = 'combina-v2';
+var CACHE = 'combina-v3';
 var SHELL = ['./', 'index.html', 'css/styles.css', 'js/config.js', 'js/expr.js', 'js/puzzle.js',
-  'js/medals.js', 'js/backend.js', 'js/sound.js', 'js/app.js', 'manifest.webmanifest', 'img/icon-192.png'];
+  'js/medals.js', 'js/backend.js', 'js/sound.js', 'js/app.js', 'manifest.webmanifest', 'img/icon-192.png', 'fonts/fonts.css', 'privacitat.html'];
 
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(SHELL); }).then(function () { return self.skipWaiting(); }));

@@ -24,9 +24,13 @@ window.COMBINA_CONFIG = {
   penaltyPerUnit: 0.1,
   // Nivells (comptant des de 0) a partir dels quals apareixen les tecles xʸ i √ al repte diari
   advancedFrom: 3,
-  // Correu on arriben els missatges del formulari «Sobre mi · Contacte» (via FormSubmit).
-  // Buit = formulari desactivat.
-  contactEmail: 'francesc.coll.boada@gmail.com',
+  // Correu públic de contacte i de privadesa (redirecció de CDmon cap al correu personal).
+  // El formulari «Contacte» obre l'aplicació de correu de qui escriu (sense serveis externs).
+  contactEmail: 'hola@combina.cat',
+  // Protecció de dades: edat mínima per crear compte o sortir al rànquing (LOPDGDD art. 7: 14 anys;
+  // si la llei la puja a 16, canvia-ho aquí) i versió de la política (si canvia, es torna a demanar).
+  minAge: 14,
+  policyVersion: 'v1',
 
   // Projecte de Firebase (inici de sessió amb Google i rànquing compartit).
   // Aquestes dades són públiques per disseny; la seguretat la donen les regles de Firestore.
