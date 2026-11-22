@@ -4,6 +4,7 @@
 window.COMBINA_CONFIG = {
   // Dia del repte nº 1
   startDate: '2026-11-19',
+  distMin: 20,                 // jugadors mínims del dia per mostrar la campana de Gauss al resultat
   // El repte canvia cada dia a aquesta hora (hora de Barcelona)
   timeZone: 'Europe/Madrid',
   resetHour: 9,

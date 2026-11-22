@@ -11,7 +11,7 @@
 
   var cfg = global.COMBINA_CONFIG || {};
   var enabled = !!(cfg.firebase && global.firebase);
-  var auth = null, db = null, user = null, listeners = [];
+  var auth = null, db = null, user = null, listeners = [], lite = null;
 
   function shortName(name) {
     var p = String(name || 'Jugador').trim().split(/\s+/);
@@ -150,6 +150,37 @@
     scoreOf: function (dayKey, uid) {
       if (!enabled) return Promise.resolve(null);
       return scoresOf(dayKey).doc(uid).get().then(function (d) { return d.exists ? withUid(d) : null; });
+    },
+
+    /* Distribució de puntuacions d'un dia, sense descarregar-les: consultes de recompte al servidor
+     * (Firestore Lite, carregat només quan cal). Cada recompte costa 1 lectura per cada 1000 jugadors.
+     * Torna { n, buckets: [11 recomptes: 0–49 … 450–499, 500], below, ties } */
+    distribution: function (dayKey, mine) {
+      if (!enabled || !cfg.firebase) return Promise.resolve(null);
+      var V = 'https://www.gstatic.com/firebasejs/10.12.2/';
+      if (!lite) {
+        lite = Promise.all([import(V + 'firebase-app.js'), import(V + 'firebase-firestore-lite.js')]).then(function (m) {
+          var app = m[0].initializeApp(cfg.firebase, 'stats');
+          return { F: m[1], db: m[1].getFirestore(app) };
+        });
+        lite.catch(function () { lite = null; });
+      }
+      return lite.then(function (L) {
+        var F = L.F, col = F.collection(L.db, 'days', dayKey, 'scores');
+        var count = function () {
+          var q = F.query.apply(null, [col].concat(Array.prototype.slice.call(arguments)));
+          return F.getCount(q).then(function (s) { return s.data().count; });
+        };
+        var jobs = [];
+        for (var b = 0; b < 10; b++) jobs.push(count(F.where('total', '>=', b * 50), F.where('total', '<', b * 50 + 50)));
+        jobs.push(count(F.where('total', '>=', 500)));
+        jobs.push(count(F.where('total', '<', mine)));
+        jobs.push(count(F.where('total', '==', mine)));
+        return Promise.all(jobs).then(function (r) {
+          var buckets = r.slice(0, 11);
+          return { n: buckets.reduce(function (a, c) { return a + c; }, 0), buckets: buckets, below: r[11], ties: r[12] };
+        });
+      });
     },
 
     /* Rànquing d'un dia (tothom, o només una llista de jugadors) */

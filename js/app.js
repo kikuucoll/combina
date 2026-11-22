@@ -328,7 +328,7 @@
     fitScreen();
     if (state.screen === 'ranquing') loadRanking();
     if (state.screen === 'correccio') animateLevelPoints();
-    if (state.screen === 'resultat') animateResult();
+    if (state.screen === 'resultat') { animateResult(); loadDist(); }
     if (state.screen === 'resultat' || state.screen === 'desglos') prepareCard();
     tickCountdowns();
   }
@@ -1314,6 +1314,7 @@
         <div>
           ${challengeResult(total)}
           ${cel}
+          ${distCard()}
           <section class="card bars" aria-label="Punts per nivell">${bars}
             <p class="muted small">${ex ? ex + (ex === 1 ? ' resultat exacte (en or)' : ' resultats exactes (en or)') : 'Cap resultat exacte avui'}${starsOf(d) ? ` · <b class="gold">${starsOf(d)} ★</b> amb totes les xifres` : ''}. Ratxa: <b class="chalk">${s} ${s === 1 ? 'dia' : 'dies'}</b>.</p>
           </section>
@@ -1345,6 +1346,106 @@
     return `combina ≈ nº ${state.puzzle.number}\n${marks}${stars ? ' ' + '⭐'.repeat(stars) : ''}\n${total}/${maxTotal()} · ${r.name}${s > 1 ? ` · 🔥${s}` : ''}`;
   }
 
+
+  /* ================= La campana de Gauss d'avui ================= */
+  // Distribució de les puntuacions del dia (recomptes al servidor) i on queda el jugador.
+  // Per sobre de la mitjana: s'omple l'àrea i es diu quin percentatge supera.
+  // Per sota: cap percentatge; només la distància a la mitjana com a repte assolible,
+  // i si queda molt lluny, ni marcador: un missatge sobre la seva pròpia progressió.
+  function distKey() { return state.dayKey + '|' + totalOf(day()); }
+  function distInfo() {
+    const D = state.dist;
+    if (!D || D.key !== distKey() || !D.data || D.data.n < (C.distMin || 20)) return null;
+    const x = D.data, total = totalOf(day()), MAX = maxTotal();
+    const mids = [25, 75, 125, 175, 225, 275, 325, 375, 425, 475, 500];
+    const mu = x.buckets.reduce((a, c, i) => a + c * mids[i], 0) / x.n;
+    const sd = Math.max(25, Math.sqrt(x.buckets.reduce((a, c, i) => a + c * (mids[i] - mu) * (mids[i] - mu), 0) / x.n));
+    const pct = Math.floor(x.below / x.n * 100);
+    const above = total >= mu;
+    let mode, msg;
+    if (total >= MAX) { mode = 'top'; msg = `<b class="gold">Dia perfecte!</b> Només el ${Math.max(1, Math.round(x.ties / x.n * 100))} % dels jugadors d'avui ha fet ${MAX} punts.`; }
+    else if (above && pct >= 90) { mode = 'top'; msg = `<b class="gold">Ets entre el ${Math.max(1, 100 - pct)} % millor d'avui!</b> Has superat el ${pct} % dels jugadors.`; }
+    else if (above) { mode = 'up'; msg = `Has superat el <b class="gold">${pct} %</b> dels jugadors d'avui.`; }
+    else {
+      const gap = Math.ceil(mu) - total;
+      if (gap <= 120) { mode = 'goal'; msg = `Amb <b class="chalk">${gap} punts més</b> arribaves a la mitjana d'avui (${Math.round(mu)}). Demà la pots superar!`; }
+      else {
+        mode = 'self';
+        const best = Math.max.apply(null, Object.keys(store.days).filter(k => store.days[k].finished).map(k => store.days[k].total));
+        msg = best > total ? `Cada repte entrena el càlcul: la teva millor marca és <b class="chalk">${best}</b>. Demà, cinc nivells nous!` : 'Cada repte entrena el càlcul. Demà, cinc nivells nous!';
+      }
+    }
+    return { x, total, MAX, mu, sd, pct, mode, msg };
+  }
+
+  function distCard() {
+    if (!B.enabled || state.practice) return '';
+    const I = distInfo();
+    if (!I) return '<div id="dist-slot"></div>';
+    const { x, total, MAX, mu, sd, pct, mode, msg } = I;
+    const rk = SV.rankFor(total), RC = rk.color;   // la campana pren el color del rang del dia
+    const W = 320, H = 150, L = 10, R = 10, T = 22, Bm = 30, pw = W - L - R, ph = H - T - Bm;
+    const X = v => L + Math.max(0, Math.min(MAX, v)) / MAX * pw;
+    const pdf = v => Math.exp(-0.5 * Math.pow((v - mu) / sd, 2)) / (sd * Math.sqrt(2 * Math.PI));
+    // Escala comuna: corba normal ajustada (n · 50 · pdf) i histograma real (cada barra = 50 punts)
+    const hist = x.buckets.slice(0, 9).concat([x.buckets[9] + x.buckets[10]]);   // l'última barra és 450–500
+    const curveMax = x.n * 50 * pdf(mu), histMax = Math.max.apply(null, hist);
+    const top = Math.max(curveMax, histMax) * 1.08;
+    const Y = c => T + ph - c / top * ph;
+    const bars = hist.map((c, i) => c ? `<rect x="${(X(i * 50) + 1).toFixed(1)}" y="${Y(c).toFixed(1)}" width="${(X(50) - X(0) - 2).toFixed(1)}" height="${(T + ph - Y(c)).toFixed(1)}" rx="2" fill="#ECE8DF" fill-opacity=".08"/>` : '').join('');
+    const pts = [];
+    for (let v = 0; v <= MAX; v += 5) pts.push([X(v), Y(x.n * 50 * pdf(v))]);
+    const line = pts.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+    const base = (T + ph).toFixed(1);
+    const showMe = mode !== 'self', up = mode === 'up' || mode === 'top';
+    const fillPts = pts.filter(p => p[0] <= X(total) + 0.01);
+    const area = up && fillPts.length > 1 ? `<path class="dc-area" d="M${X(0).toFixed(1)},${base} L${fillPts.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' L')} L${X(total).toFixed(1)},${Y(x.n * 50 * pdf(total)).toFixed(1)} L${X(total).toFixed(1)},${base} Z" fill="url(#dc-gold)"/>` : '';
+    // Eix: els cinc savis al llarg de la puntuació
+    const axis = SV.list.map(s => `<line x1="${X(Math.max(0, s.min - 1)).toFixed(1)}" x2="${X(s.max).toFixed(1)}" y1="${base}" y2="${base}" stroke="${s.color}" stroke-width="3" stroke-opacity=".75"/>`).join('') +
+      [0, 100, 200, 300, 400, 500].map(v => `<text x="${X(v).toFixed(1)}" y="${(T + ph + 14).toFixed(1)}" text-anchor="${v === 0 ? 'start' : v === MAX ? 'end' : 'middle'}" fill="#7D8693" font-size="9">${v}</text>`).join('');
+    const meanX = X(mu).toFixed(1);
+    // Si «Tu» queda a prop de la mitjana, l'etiqueta μ s'aparta cap a l'altre costat
+    const near = showMe && Math.abs(X(total) - X(mu)) < 44;
+    const muAnchor = near ? (total >= mu ? 'end' : 'start') : 'middle';
+    const muLx = near ? X(mu) + (total >= mu ? -4 : 4) - (total >= mu ? Math.max(0, 30 - (X(total) - X(mu))) : -Math.max(0, 30 - (X(mu) - X(total)))) : X(mu);
+    const meY = Y(x.n * 50 * pdf(total));
+    const me = showMe ? `<g class="dc-me">
+        <line x1="${X(total).toFixed(1)}" x2="${X(total).toFixed(1)}" y1="${(meY - 4).toFixed(1)}" y2="${base}" stroke="${RC}" stroke-width="1.4"/>
+        <circle cx="${X(total).toFixed(1)}" cy="${meY.toFixed(1)}" r="5" fill="${up ? RC : '#0B0E12'}" stroke="${RC}" stroke-width="1.8"/>
+        <text x="${(X(total) > W - 40 ? X(total) + 5 : X(total) < 40 ? X(total) - 5 : X(total)).toFixed(1)}" y="${Math.max(10, meY - 11).toFixed(1)}" text-anchor="${X(total) > W - 40 ? 'end' : X(total) < 40 ? 'start' : 'middle'}" fill="${RC}" font-size="11" font-weight="600" stroke="#0B0E12" stroke-width="4" paint-order="stroke">Tu${total >= MAX ? ' ★' : up ? ' · ' + pct + ' %' : ''}</text></g>` : '';
+    // Per sota: fletxa cap a la mitjana amb els punts que falten (objectiu proper, no rànquing)
+    const goal = mode === 'goal' ? `<g class="dc-goal"><line x1="${(X(total) + 7).toFixed(1)}" x2="${(X(mu) - 4).toFixed(1)}" y1="${(T + ph - 12).toFixed(1)}" y2="${(T + ph - 12).toFixed(1)}" stroke="#E6B85C" stroke-width="1.4" stroke-dasharray="3 3" marker-end="url(#dc-arrow)"/>
+        <text x="${((X(total) + X(mu)) / 2).toFixed(1)}" y="${(T + ph - 17).toFixed(1)}" text-anchor="middle" fill="#E6B85C" font-size="10" font-weight="600" stroke="#0B0E12" stroke-width="4" paint-order="stroke">+${Math.ceil(mu) - total}</text></g>` : '';
+    const svg = `<svg class="dist-svg${mode === 'top' ? ' top' : ''}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Distribució de les puntuacions d'avui: ${x.n} jugadors, mitjana ${Math.round(mu)}.">
+        <defs>
+          <linearGradient id="dc-gold" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${RC}" stop-opacity=".55"/><stop offset="1" stop-color="${RC}" stop-opacity=".08"/></linearGradient>
+          <marker id="dc-arrow" viewBox="0 0 8 8" refX="6" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#E6B85C"/></marker>
+        </defs>
+        ${bars}${area}
+        <polyline class="dc-curve" points="${line}" pathLength="1" fill="none" stroke="${RC}" stroke-opacity=".9" stroke-width="1.6" stroke-linejoin="round"/>
+        <line x1="${meanX}" x2="${meanX}" y1="${(T - 6).toFixed(1)}" y2="${base}" stroke="#ECE8DF" stroke-opacity=".4" stroke-width=".8" stroke-dasharray="3 3"/>
+        <text x="${muLx.toFixed(1)}" y="${(T - 10).toFixed(1)}" text-anchor="${muAnchor}" fill="#9AA3B0" font-size="9.5">μ = ${Math.round(mu)}</text>
+        ${axis}${goal}${me}
+      </svg>`;
+    return `<div id="dist-slot"><section class="card dist-card ${mode}" style="--rc:${RC};--rrgb:${rk.rgb}" aria-label="Com has quedat avui">
+      <div class="coll-head"><p class="kicker">La campana de Gauss d'avui</p><p class="muted small">${x.n} jugadors fins ara</p></div>
+      ${svg}
+      <p class="dist-msg">${msg}</p>
+    </section></div>`;
+  }
+
+  // Es demana en obrir el resultat (i es refresca si fa més de 2 minuts)
+  function loadDist() {
+    if (!B.enabled || state.practice || !day().finished) return;
+    const key = distKey(), D = state.dist;
+    if (D && D.key === key && (D.loading || Date.now() - D.at < 120000)) return;
+    state.dist = { key, at: Date.now(), loading: true, data: D && D.key === key ? D.data : null };
+    B.distribution(state.dayKey, totalOf(day())).then(data => {
+      state.dist = { key, at: Date.now(), data };
+      const slot = document.getElementById('dist-slot');
+      if (slot && state.screen === 'resultat') { slot.outerHTML = distCard(); prepareCard(); }
+    }).catch(e => { state.dist = { key, at: Date.now(), data: null }; console.warn('Distribució no disponible', e); });
+  }
 
   /* ================= Targeta personal (imatge 1080×1920 per a històries) ================= */
   // Medalla del savi com a imatge: l'SVG de medals.js sense animacions ni filtres CSS
@@ -1436,14 +1537,30 @@
     g.strokeStyle = 'rgba(236,232,223,.12)'; g.lineWidth = 2;
     [-160, 160].forEach(dx => { g.beginPath(); g.moveTo(W / 2 + dx, 1650); g.lineTo(W / 2 + dx, 1775); g.stroke(); });
     // Peu
-    g.fillStyle = '#E6B85C'; g.font = `600 42px ${SANS}`;
-    g.fillText('Supera’m a combina.cat', W / 2, 1862);
+    const brag = cardBrag();
+    if (brag) {
+      g.font = `600 44px ${SANS}`;
+      const bw2 = g.measureText(brag).width + 80;
+      g.beginPath(); g.roundRect ? g.roundRect(W / 2 - bw2 / 2, 1792, bw2, 76, 38) : g.rect(W / 2 - bw2 / 2, 1792, bw2, 76);
+      g.fillStyle = 'rgba(230,184,92,.16)'; g.fill(); g.strokeStyle = 'rgba(230,184,92,.8)'; g.lineWidth = 2; g.stroke();
+      g.fillStyle = '#E6B85C'; g.fillText(brag, W / 2, 1845);
+      g.fillStyle = '#ECE8DF'; g.font = `600 36px ${SANS}`; g.fillText('Supera’m a combina.cat', W / 2, 1902);
+    } else {
+      g.fillStyle = '#E6B85C'; g.font = `600 42px ${SANS}`;
+      g.fillText('Supera’m a combina.cat', W / 2, 1862);
+    }
     return new Promise(ok => cv.toBlob(ok, 'image/png'));
   }
 
   // Un sol botó «Comparteix el teu resultat»: imatge + text del resultat + enllaç de repte.
   // La imatge es prepara en obrir la pantalla, perquè el menú de compartir s'obri dins del mateix toc (Safari ho exigeix).
-  function cardKey() { const d = day(); return state.dayKey + '|' + totalOf(d) + '|' + streak() + '|' + ACH.filter(a => store.ach[a.id]).length; }
+  function cardKey() { const d = day(); return state.dayKey + '|' + totalOf(d) + '|' + streak() + '|' + ACH.filter(a => store.ach[a.id]).length + '|' + cardBrag(); }
+  // Frase de la targeta: només si deixa el jugador en bon lloc
+  function cardBrag() {
+    const I = distInfo();
+    if (!I || (I.mode !== 'up' && I.mode !== 'top')) return '';
+    return I.total >= I.MAX ? 'Dia perfecte · ' + I.x.n + ' jugadors avui' : I.pct >= 90 ? 'Entre el ' + Math.max(1, 100 - I.pct) + ' % millor d’avui' : 'Millor que el ' + I.pct + ' % dels jugadors d’avui';
+  }
   function prepareCard() {
     if (!day().finished || state.practice) return Promise.resolve(null);
     const key = cardKey();
