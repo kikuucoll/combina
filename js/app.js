@@ -60,7 +60,14 @@
   }
 
   /* ================= Estat ================= */
-  const TUT = { count: 3, nums: [2, 3, 4], target: 10, solution: '3 * 4 - 2' };
+  // Tutorial en dues rondes guiades (s'aprèn jugant, sense llegir):
+  // ① encertar l'objectiu  ② no es pot encertar → apropar-s'hi també puntua
+  // guide: tecles que brillen en ordre ('0', '1' = xifres per índex; '+', '*' = operacions)
+  const TUTS = [
+    { count: 2, nums: [4, 6], target: 10, label: 'Arriba al', guide: ['0', '+', '1', 'submit'] },
+    { count: 2, nums: [4, 6], target: 25, label: 'Apropa’t al', cap: 'Com més a prop, més punts', guide: ['0', '*', '1', 'submit'] }
+  ];
+  function tutL() { return TUTS[state.tutStep || 0]; }
   const state = {
     screen: null, dayKey: P.dayKey(), puzzle: null, level: 0,
     user: null, rankTab: 'day', rankScope: 'all', ticker: null, reward: null,
@@ -290,7 +297,8 @@
   }
 
   function renderNav() {
-    const hidden = ['entrada', 'joc', 'correccio'].indexOf(state.screen) >= 0 || (state.screen === 'tutorial' && !store.seenHelp);
+    // Al tutorial també s'amaga: és una partida i la barra tapava el teclat (per sortir hi ha la fletxa enrere)
+    const hidden = ['entrada', 'joc', 'correccio'].indexOf(state.screen) >= 0 || (state.screen === 'tutorial' && !(state.tutResult && state.tutResult.done));
     document.body.classList.toggle('no-nav', hidden);
     const item = (id, label, icon) =>
       `<button type="button" class="nav-item${state.screen === id ? ' on' : ''}" data-go="${id}"${state.screen === id ? ' aria-current="page"' : ''}>${icon}<span>${label}</span></button>`;
@@ -348,6 +356,7 @@
       expr: `<div class="expr-card" aria-live="polite">
           <p class="expr" id="expr"></p>
           <div class="expr-live"><span id="live-val">&nbsp;</span><span class="pill" id="live-pts"></span></div>
+          <div class="pts-bar" aria-hidden="true"><i id="pts-fill"></i></div>
         </div>`,
       tiles: `<div class="tiles" style="--n:${L.count};--cols:${L.count <= 6 ? L.count : 4}">${tiles}</div>`,
       keypad: `<div class="keypad${adv ? '' : ' basic'}">
@@ -362,7 +371,7 @@
 
   /* Context actiu: el tutorial o el nivell en joc */
   function ctx() {
-    if (state.screen === 'tutorial') return { st: state.tut, L: TUT, tut: true };
+    if (state.screen === 'tutorial') return { st: state.tut, L: tutL(), tut: true };
     return { st: day().levels[state.level], L: state.puzzle.levels[state.level], tut: false };
   }
 
@@ -551,24 +560,23 @@
 
   /* ================= Pantalla: tutorial jugable ================= */
   function screenTutorial() {
-    const b = boardHTML(TUT);
-    const r = state.tutResult;
-    const done = r && r.exact;
+    const L = tutL(), b = boardHTML(L), step = state.tutStep || 0;
+    const done = state.tutResult && state.tutResult.done;
+    const dots = TUTS.map((_, k) => `<i class="${k < step ? 'ok' : k === step ? 'on' : ''}"></i>`).join('');
     return `<section class="screen tutorial">
       <header class="game-head">
         <button type="button" class="icon-btn" data-action="tut-exit" aria-label="Surt del tutorial">${ICON.back}</button>
-        <div class="game-progress"><p class="kicker">${store.seenHelp ? 'Tutorial' : 'Escalfament'} · sense rellotge</p></div>
+        <div class="game-progress"><p class="kicker">${store.seenHelp ? 'Tutorial' : 'Escalfament'} · sense rellotge</p><div class="tut-dots" aria-hidden="true">${dots}</div></div>
       </header>
-      <div class="tut-intro">
-        ${store.seenHelp ? '' : `<p class="tut-brand">${wordmark}<span class="kicker">El repte diari de càlcul · 5 nivells, 2 minuts</span></p>${challengeCard()}`}
-        <h1 class="title sm">Prova-ho: arriba al <span class="gold">10</span></h1>
-        <p class="lead">Combina les xifres 2, 3 i 4 amb operacions. Cada xifra, un sol cop.</p>
-      </div>
+      ${store.seenHelp ? '' : `<div class="tut-intro"><p class="tut-brand">${wordmark}<span class="kicker">El repte diari de càlcul · 5 nivells, 2 minuts</span></p>${challengeCard()}</div>`}
       ${done ? tutorialDone() : `
-      <div class="coach" id="coach" role="status"></div>
       <div class="game">
         <div class="game-main">
-          <div class="target small-target"><p class="kicker">Objectiu</p><p class="target-num">10</p></div>
+          <div class="target small-target tut-target${step ? ' approx' : ''}">
+            <p class="kicker">${L.label}</p><p class="target-num">${L.target}</p>
+            ${L.cap ? `<p class="tut-cap">${L.cap}</p>` : ''}
+            <p class="tut-pop" id="tut-pop" aria-live="polite"></p>
+          </div>
           ${b.expr}${b.tiles}
         </div>
         ${b.keypad}
@@ -579,8 +587,9 @@
   // Només quan es repeteix el tutorial des del menú (el primer cop es passa directament al joc)
   function tutorialDone() {
     return `<div class="card tut-done">
-      <p class="pop exact">+100</p>
-      <p class="tut-done-title">Exacte! Ja saps jugar.</p>
+      <p class="pop exact">≈</p>
+      <p class="tut-done-title">Ja saps jugar!</p>
+      <p class="lead">Encertar val 100 punts. Si t'hi apropes, també en suma.</p>
       <button type="button" class="btn btn-primary" data-action="tut-finish">Juga el repte d'avui</button>
       <button type="button" class="btn btn-ghost" data-action="tut-again">Torna a provar el tutorial</button>
     </div>`;
@@ -600,45 +609,53 @@
     </details>`;
   }
 
-  function coachText(st) {
-    const t = st.tokens, last = t[t.length - 1];
-    if (!t.length) return '<b>①</b> Toca una xifra per començar. Prova amb el <b>3</b>.';
-    const r = E.value(t);
-    if (r.ok && r.v === TUT.target && !E.allowed(t).close) return '<b>Ja hi ets!</b> Prem <b>Valida =</b> per comprovar-ho.';
-    if (last.t === 'op') return '<b>③</b> Ara una altra xifra. Recorda: cada xifra només un cop.';
-    if (last.t === 'num' && t.length === 1) return '<b>②</b> Tria una operació. Prova amb <b>×</b>.';
-    if (r.ok) {
-      const d = TUT.target - r.v;
-      if (d > 0) return `Tens <b>${E.fmt(r.v)}</b>: et falten <b>${E.fmt(d)}</b>. Continua amb una altra operació o esborra amb <b>⌫</b>.`;
-      return `Tens <b>${E.fmt(r.v)}</b>: t'has passat de <b>${E.fmt(-d)}</b>. Prova de restar o esborra amb <b>⌫</b>.`;
+  // Tecla que ha de brillar ara: segueix la guia mentre el jugador la segueix;
+  // si se'n desvia, no es bloqueja res i només es convida a validar quan hi ha un resultat
+  function tutGuide(st) {
+    const g = tutL().guide, t = st.tokens;
+    for (let i = 0; i < t.length; i++) {
+      const w = g[i], tok = t[i];
+      const ok = /^\d$/.test(w || '') ? (tok.t === 'num' && tok.i === +w) : (tok.t === 'op' && tok.v === w);
+      if (!ok) return (t.length >= 3 && E.value(t).ok) ? 'submit' : null;
     }
-    return 'Continua l’expressió…';
+    return g[t.length] || null;
+  }
+  function showGuide(st) {
+    view.querySelectorAll('.guide').forEach(b => b.classList.remove('guide'));
+    if (st.done) return;
+    const k = tutGuide(st);
+    if (!k) return;
+    const el = /^\d$/.test(k) ? view.querySelector(`.tile[data-tile="${k}"]`) : view.querySelector(`.key[data-key="${k}"]`);
+    if (el && !el.disabled) el.classList.add('guide');
   }
 
   function tutSubmit() {
-    const r = E.value(state.tut.tokens);
-    if (!r.ok) return nudge();
-    const pts = E.points(TUT.target, r.v, E.tilesUsed(state.tut.tokens), TUT.count);
-    if (E.distance(TUT.target, r.v) === 0) {
+    const L = tutL(), st = state.tut, r = E.value(st.tokens);
+    if (!r.ok || st.done) return nudge();
+    const d = E.distance(L.target, r.v), pts = E.points(L.target, r.v, E.tilesUsed(st.tokens), L.count);
+    const step = state.tutStep || 0, last = step >= TUTS.length - 1;
+    // A la ronda d'aproximació, si queda massa lluny (0 punts) es torna a provar
+    const retry = last && pts === 0;
+    const pop = document.getElementById('tut-pop');
+    if (pop) {
+      pop.innerHTML = `+${pts}<small>${d === 0 ? 'Exacte!' : pts > 0 ? 'Gairebé! També suma' : 'Massa lluny · apropa-t’hi més'}</small>`;
+      pop.className = 'tut-pop show' + (d === 0 ? ' exact' : pts === 0 ? ' miss' : '');
+    }
+    if (pts >= LEVEL_MAX) sfx('full'); else if (pts > 0) sfx('settle'); else nudge();
+    st.done = true;
+    view.querySelectorAll('.tile, .key').forEach(b => { b.disabled = true; b.classList.remove('guide'); });
+    setTimeout(() => {
+      if (state.screen !== 'tutorial') return;
+      if (retry) { state.tut = { tokens: [], startAt: 1, done: false }; return render(); }
+      if (!last) { state.tutStep = step + 1; state.tut = { tokens: [], startAt: 1, done: false }; return render(); }
       const first = !store.seenHelp;
       track('tutorial_completat', 'Tutorial completat');
       store.seenHelp = true; save();
-      sfx('full');
-      if (first) {
-        // Primer cop: sense pantalles entremig, directes al nivell 1
-        const c = document.getElementById('coach');
-        if (c) c.innerHTML = '<b>Exacte! +100.</b> Ara, el repte d’avui…';
-        view.querySelectorAll('.tile, .key').forEach(b => { b.disabled = true; });
-        setTimeout(() => { if (state.screen === 'tutorial') play(); }, reduceMotion ? 300 : 1100);
-        return;
-      }
-      state.tutResult = { exact: true, points: pts };
+      // Primer cop: sense pantalles entremig, directes al nivell 1
+      if (first) return play();
+      state.tutResult = { done: true };
       render();
-    } else {
-      const c = document.getElementById('coach');
-      if (c) c.innerHTML = `Valdria <b>${pts} punts</b> (a ${E.fmt(E.distance(TUT.target, r.v))} de l'objectiu). Al joc de veritat també puntua, però prova d'arribar <b>exactament</b> al 10!`;
-      nudge();
-    }
+    }, reduceMotion ? 600 : (d === 0 ? 1100 : 1700));
   }
 
   /* ================= Pantalla: avui ================= */
@@ -835,16 +852,24 @@
         (open > 0 ? ` · falta${open > 1 ? 'n' : ''} ${open} )` : '');
       lp.className = 'pill' + (d === 0 ? ' exact' : '') + (open > 0 ? ' warn' : '');
       sb.disabled = false;
+      setBar(pts, d === 0);
     } else {
       lv.innerHTML = '&nbsp;';
       lp.textContent = r.empty ? '' : r.err;
       lp.className = 'pill' + (r.empty ? ' hidden' : ' err');
       sb.disabled = !!r.empty;
+      setBar(0, false);
     }
-    if (c.tut) {
-      const co = document.getElementById('coach');
-      if (co) co.innerHTML = coachText(st);
-    }
+    if (c.tut) showGuide(st);
+  }
+
+  // Barra de punts en directe: com més a prop de l'objectiu, més plena
+  function setBar(pts, exact) {
+    const f = document.getElementById('pts-fill');
+    if (!f) return;
+    f.style.width = Math.max(0, Math.min(100, pts / LEVEL_MAX * 100)) + '%';
+    f.parentNode.classList.toggle('exact', !!exact);
+    f.parentNode.classList.toggle('some', pts > 0);
   }
 
   const CIRC = 2 * Math.PI * 22;
@@ -1770,6 +1795,7 @@
 
   function openTutorial() {
     state.tut = { tokens: [], startAt: 1, done: false };
+    state.tutStep = 0;
     state.tutResult = null;
     go('tutorial');
   }
