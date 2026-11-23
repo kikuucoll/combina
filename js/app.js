@@ -57,7 +57,7 @@
         <button type="button" class="btn btn-ghost" data-action="age" data-age="adult">${MIN_AGE} o més</button>
       </div>
       <p class="small muted">Si en tens ${MIN_AGE} o més, en continuar acceptes la ${privacyLink('política de privadesa')}.
-        Al rànquing només es veuen el teu àlies i els teus punts, mai el teu correu.</p>
+        Al rànquing només es veuen el teu àlies i els teus resultats, mai el teu correu.</p>
       ${existing ? '' : '<button type="button" class="btn-text" data-action="close-modal">Ara no</button>'}`);
   }
   function minorModal(deleted) {
