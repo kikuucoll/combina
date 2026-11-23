@@ -81,15 +81,31 @@
       render();
       return minorModal();
     }
-    if (B.user) pushCloud();
+    if (B.user) { pushCloud(); setTimeout(askAliasNotice, 800); }
     if (fn) fn(); else render();
   }
   // Jugadors que ja tenien compte d'abans de la política (o d'una versió anterior): es pregunta un cop
   function askExistingConsent() {
-    if (!B.user || consentOk()) return;
+    if (!B.user) return;
+    if (consentOk()) return askAliasNotice();
     if (state.screen === 'joc' || !modalEl.hidden) return setTimeout(askExistingConsent, 4000);
     if (store.age === 'minor') return eraseAccount(false).then(() => minorModal(true), () => {});
     ageModal(true);
+  }
+  // Noms públics canviats per un àlies per privadesa: avís un sol cop (per dispositiu)
+  function askAliasNotice() {
+    const u = B.user;
+    if (!u || !u.aliasNotice || store.aliasNoticeSeen) return;
+    if (!consentOk() || state.screen === 'joc' || !modalEl.hidden) return setTimeout(askAliasNotice, 4000);
+    store.aliasNoticeSeen = true; save();
+    openModal(`<p class="kicker gold">Privadesa</p>
+      <h2 class="title sm">Ara tens un àlies</h2>
+      <p class="lead">Per protegir la teva privadesa, hem canviat el teu nom públic del rànquing.
+        Ara hi surts com a <b class="chalk">${esc(u.name)}</b>.</p>
+      <p class="small muted">Els teus punts, la ratxa i els segells es mantenen igual. Pots triar un altre àlies quan vulguis,
+        però no hi posis el teu nom complet. ${privacyLink('Més informació')}</p>
+      <button type="button" class="btn btn-primary" data-action="profile">Tria el teu àlies</button>
+      <button type="button" class="btn-text" data-action="close-modal">D'acord</button>`);
   }
 
   /* Àlies públic: res que pugui identificar algú (correus, xarxes, webs, telèfons, anys de naixement) */

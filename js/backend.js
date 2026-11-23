@@ -76,6 +76,8 @@
           var x = d.exists ? d.data() : {};
           if (x.name) user.name = x.name;
           if (x.avatar) user.avatar = x.avatar;
+          // Nom canviat per privadesa (neteja del 23/11/2026): l'app ho avisa un cop
+          if (x.aliasNotice) user.aliasNotice = true;
           // Perfils antics amb el nom real de Google: passen a un àlies (perfil i historial del rànquing)
           if (x.name && ((!u.isAnonymous && looksReal(x.name, u)) || badName(x.name))) {
             user.name = alias(u.uid);
