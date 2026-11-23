@@ -98,6 +98,12 @@
     if (!u || !u.aliasNotice || store.aliasNoticeSeen) return;
     if (!consentOk() || state.screen === 'joc' || !modalEl.hidden) return setTimeout(askAliasNotice, 4000);
     store.aliasNoticeSeen = true; save();
+    // Si una pàgina oberta d'abans del canvi hi va tornar a escriure el nom antic, es torna a posar l'àlies
+    if (!B.isAlias(u.name)) {
+      const a = B.aliasFor(u.uid);
+      B.saveProfile(a, u.avatar || '').then(() => render()).catch(() => {});
+      u.name = a;
+    }
     openModal(`<p class="kicker gold">Privadesa</p>
       <h2 class="title sm">Ara tens un àlies</h2>
       <p class="lead">Per protegir la teva privadesa, hem canviat el teu nom públic del rànquing.

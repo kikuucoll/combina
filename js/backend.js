@@ -98,6 +98,8 @@
   var Backend = {
     get enabled() { return enabled; },
     get user() { return user; },
+    aliasFor: alias,
+    isAlias: function (n) { return new RegExp('^(' + SAVIS.join('|') + ') \\d{3}$').test(n || ''); },
 
     onAuth: function (fn) { listeners.push(fn); if (!enabled) fn(null); },
 
@@ -173,6 +175,9 @@
         return Promise.all([tx.get(scoreRef), tx.get(playerRef)]).then(function (r) {
           if (r[0].exists) return false;
           var p = r[1].exists ? r[1].data() : {};
+          // El nom desat al perfil mana (p. ex. si s'ha canviat per privadesa amb la pàgina oberta)
+          if (p.name) user.name = p.name;
+          if (p.avatar) user.avatar = p.avatar;
           tx.set(scoreRef, {
             name: user.name, avatar: user.avatar || '', total: result.total, exact: result.exact,
             levels: result.levels, at: ts()
