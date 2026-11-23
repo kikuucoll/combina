@@ -781,6 +781,7 @@
     }
     if (pts >= LEVEL_MAX) sfx('full'); else if (pts > 0) sfx('settle'); else nudge();
     st.done = true;
+    tutTrack(retry ? 'reintent' : 'ok', retry ? 'massa lluny, torna a provar' : 'superada');
     view.querySelectorAll('.tile, .key').forEach(b => { b.disabled = true; b.classList.remove('guide'); });
     setTimeout(() => {
       if (state.screen !== 'tutorial') return;
@@ -1044,6 +1045,24 @@
   function track(name, title) {
     try { if (window.goatcounter && window.goatcounter.count) window.goatcounter.count({ path: name, title: title || name, event: true }); } catch (e) {}
   }
+  // Només una vegada per sessió (per no inflar els recomptes amb repeticions)
+  const tracked = new Set();
+  function trackOnce(name, title) { if (tracked.has(name)) return; tracked.add(name); track(name, title); }
+  // Embut del tutorial: només per als qui el fan per primer cop
+  function tutTrack(what, title) {
+    if (store.seenHelp) return;
+    const r = (state.tutStep || 0) + 1;
+    trackOnce('tut_r' + r + '_' + what, 'Tutorial ronda ' + r + ': ' + title);
+  }
+  // On marxa la gent: l'app passa a segon pla a mig tutorial o a mig nivell
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'hidden') return;
+    if (state.screen === 'tutorial') return tutTrack('sortida', 'surt de l’app');
+    if (state.screen === 'joc' && !state.practice) {
+      const st = day().levels[state.level];
+      if (st && st.startAt && !st.done) trackOnce('nivell_' + (state.level + 1) + '_sortida', 'Nivell ' + (state.level + 1) + ': surt de l’app');
+    }
+  });
 
   // «Comença» vol dir comença ja: es mostra el tauler i el rellotge arrenca, sense pantalla d'espera
   function beginLevel(i) {
@@ -1086,10 +1105,20 @@
     state.celebrations = [];
     // Mode aula: correcció pas a pas (aquí sí, per aprendre amb calma)
     if (state.practice) return go('correccio');
-    track('nivell_' + (i + 1) + '_acabat', 'Nivell ' + (i + 1) + ' acabat');
+    const n = i + 1;
+    track('nivell_' + n + '_acabat', 'Nivell ' + n + ' acabat');
+    if (st.value === null) track('nivell_' + n + '_buit', 'Nivell ' + n + ': sense expressió vàlida');
+    else if (st.star) track('nivell_' + n + '_estrella', 'Nivell ' + n + ': exacte amb totes les xifres');
+    else if (st.exact) track('nivell_' + n + '_exacte', 'Nivell ' + n + ': exacte');
+    else track('nivell_' + n + '_aprox', 'Nivell ' + n + ': aproximat');
+    if (timeout) track('nivell_' + n + '_temps', 'Nivell ' + n + ': temps esgotat');
     onLevelDone(i, st, L);
     const last = doneCount(d) === state.puzzle.levels.length;
-    if (last) { d.finished = true; onDayFinished(); submitDay(); track('repte-acabat', 'Repte acabat'); }
+    if (last) {
+      d.finished = true; onDayFinished(); submitDay(); track('repte-acabat', 'Repte acabat');
+      const b = Math.min(4, Math.floor((d.total || 0) / 100)) * 100;
+      track('total_' + b + '-' + (b === 400 ? 500 : b + 99), 'Total del dia ' + b + '–' + (b === 400 ? 500 : b + 99));
+    }
     save();
     if (away) return go(last ? 'resultat' : 'avui');
     levelFlash(i, st, last);
@@ -1153,6 +1182,7 @@
         return finishLevel(false);
     }
     if (!ok) return nudge();
+    if (c.tut) tutTrack('toca', 'primera tecla');
     buzz(8);
     if (!c.tut) save();
     updateGame();
@@ -1162,6 +1192,7 @@
     const c = ctx(), st = c.st;
     if (!st || st.done || !st.startAt) return;
     if (!E.allowed(st.tokens).num || E.usedTiles(st.tokens)[k]) return nudge();
+    if (c.tut) tutTrack('toca', 'primera tecla');
     st.tokens.push({ t: 'num', v: c.L.nums[k], i: k });
     buzz(15);
     if (!c.tut) save();
