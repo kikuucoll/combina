@@ -1257,7 +1257,9 @@ html, body, button, a, .tile, .key { touch-action: manipulation; }
 .check input { margin-top: 3px; accent-color: var(--gold); }
 .btn-danger { background: #B5523F; border-color: #B5523F; color: #fff; }
 .btn-text.danger { color: var(--err); }
-.about-links { display: flex; justify-content: center; align-items: baseline; gap: 6px; flex-wrap: wrap; color: var(--faint); margin: 8px 0 0; }
+.about-links { display: flex; justify-content: center; align-items: center; gap: 6px; flex-wrap: wrap; color: var(--faint); margin: 8px 0 0; }
 .legal-line { text-align: center; margin: 18px 0 0; font-size: 12px; opacity: .75; }
 .field small.muted { display: block; margin-top: 4px; font-size: 12px; }
 .btn.btn-danger, .btn.btn-danger:hover { background: #B5523F; color: #fff; box-shadow: none; }
+.about-links .about-link { margin-top: 0; }
+.about-links .btn-text { font-size: 13px; color: var(--muted); }
