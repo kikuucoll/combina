@@ -142,6 +142,8 @@
     },
 
     signOut: function () { return enabled ? auth.signOut() : Promise.resolve(); },
+    // Resultat (o error) d'un inici de sessió per redirecció, en tornar a la pàgina
+    redirectResult: function () { return enabled ? auth.getRedirectResult() : Promise.resolve(null); },
 
     /* Dret de supressió (art. 17 RGPD): esborra el perfil, totes les puntuacions, el progrés desat
      * i el mateix compte de Firebase. dayKeys = tots els dies en què podria haver jugat.

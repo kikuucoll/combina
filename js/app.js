@@ -136,10 +136,48 @@
       <button type="button" class="btn btn-primary btn-danger" data-action="delete-confirm">Esborra-ho tot</button>
       <button type="button" class="btn-text" data-action="close-modal">Cancel·la</button>`);
   }
+  /* ================= Diagnòstic de l'inici de sessió (anònim) =================
+   * On s'obre el joc (sense cap dada personal): app instal·lada, navegador intern d'una xarxa, etc. */
+  function envTag() {
+    const ua = navigator.userAgent || '';
+    if (/Instagram/i.test(ua)) return 'instagram';
+    if (/FBAN|FBAV|FB_IAB/i.test(ua)) return 'facebook';
+    if (/musical_ly|TikTok|Bytedance/i.test(ua)) return 'tiktok';
+    if (/WhatsApp/i.test(ua)) return 'whatsapp';
+    if (/; wv\)/.test(ua)) return 'webview';
+    const os = /iPhone|iPad|iPod/.test(ua) ? 'ios' : /Android/.test(ua) ? 'android' : 'ordinador';
+    const app = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone;
+    return os + (app ? '-app' : '');
+  }
+  function authCode(e) { return String((e && e.code) || 'desconegut').replace(/^auth\//, '').replace(/[^a-z0-9-]/gi, '').slice(0, 40); }
+  // what: 'google' o 'alies'
+  function authFail(what, e) {
+    const code = authCode(e);
+    track('error-' + what + '_' + code + '_' + envTag(), 'Error ' + (what === 'google' ? 'Google' : 'àlies') + ': ' + code + ' (' + envTag() + ')');
+    const tip = ' Prova d’obrir combina.cat escrivint l’adreça a Safari o Chrome.';
+    const msg = {
+      'popup-closed-by-user': 'Has tancat la finestra de Google abans d’acabar.',
+      'cancelled-popup-request': 'Has tancat la finestra de Google abans d’acabar.',
+      'user-cancelled': 'Has cancel·lat l’inici de sessió.',
+      'network-request-failed': 'No hi ha connexió amb Google. Revisa la xarxa o si tens un bloquejador d’anuncis.' + tip,
+      'web-storage-unsupported': 'Aquest navegador no deixa guardar la sessió.' + tip,
+      'operation-not-supported-in-this-environment': 'Aquest navegador no deixa iniciar sessió.' + tip,
+      'internal-error': 'Aquest navegador no ha pogut connectar amb Google.' + tip,
+      'too-many-requests': 'Massa intents seguits. Torna-ho a provar d’aquí a uns minuts.',
+      'operation-not-allowed': 'El rànquing de convidats encara no està activat.'
+    }[code];
+    toast(msg || ('No s’ha pogut ' + (what === 'google' ? 'iniciar la sessió' : 'desar l’àlies') + ' (' + code + ').' + tip));
+  }
+  function signIn() {
+    track('google-intent_' + envTag(), 'Intent d’entrar amb Google');
+    B.signIn().then(r => { if (r && r.user) track('google-ok_' + envTag(), 'Entrada amb Google'); }).catch(e => authFail('google', e));
+  }
+
   function eraseAccount(local) {
     clearTimeout(cloud.timer); cloud.ready = false;
     return B.deleteAccount(allDayKeys()).then(() => {
       track('compte_esborrat', 'Compte esborrat');
+      store.hadGoogle = false;
       if (local) { try { localStorage.removeItem(KEY); } catch (e) { /* ignora */ } location.reload(); return; }
       store.askedDay = state.dayKey; save();
       render();
@@ -650,7 +688,7 @@
       render();
     }).catch(e => {
       if (btn) btn.disabled = false;
-      toast(e && e.code === 'auth/operation-not-allowed' ? 'El rànquing de convidats encara no està activat.' : 'No s’ha pogut desar: ' + ((e && e.message) || e));
+      authFail('alies', e);
     });
   }
 
@@ -2457,11 +2495,11 @@
       case 'profile-save': saveProfile(); break;
       case 'guest-join': guestJoin(t); break;
       case 'guest': store.guest = true; save(); if (!store.seenHelp) openTutorial(); else go('avui'); break;
-      case 'signin': closeModal(); withAge(() => B.signIn().catch(err => toast('No s’ha pogut iniciar la sessió: ' + (err.message || err)))); break;
+      case 'signin': closeModal(); withAge(signIn); break;
       case 'age': chooseAge(t.dataset.age); break;
       case 'delete-account': deleteModal(); break;
       case 'delete-confirm': confirmDelete(t); break;
-      case 'signout': closeModal(); B.signOut(); break;
+      case 'signout': closeModal(); store.hadGoogle = false; save(); B.signOut(); break;
       case 'play': play(); break;
       case 'start': startLevel(); break;
       case 'next': beginLevel(state.level + 1); break;
@@ -2574,7 +2612,13 @@
   readChallenge();
   loadChallenger();
 
+  let authSeen = false;
   B.onAuth(u => {
+    if (B.enabled && !authSeen) {
+      authSeen = true;
+      if (!(u && !u.anon) && store.hadGoogle) trackOnce('sessio-google-perduda_' + envTag(), 'Sessió de Google perduda');
+    }
+    if (u && !u.anon && !store.hadGoogle) { store.hadGoogle = true; save(); }
     state.user = u && !u.anon ? u : null;
     state.anon = u && u.anon ? u : null;
     cloud.ready = false;
@@ -2605,6 +2649,7 @@
     } else render();
   });
   if (B.enabled) {
+    B.redirectResult().then(r => { if (r && r.user) track('google-ok_' + envTag(), 'Entrada amb Google'); }).catch(e => authFail('google', e));
     // Si Firebase tarda, no deixem la pantalla en blanc
     setTimeout(() => { if (!state.screen) firstScreen(); }, 2500);
   }
