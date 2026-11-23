@@ -2,7 +2,7 @@
  * Si COMBINA_CONFIG.firebase és null, l'app funciona en mode local.
  *
  * Estructura a Firestore:
- *   days/{AAAA-MM-DD}/scores/{uid} → { name, avatar, total, exact, levels:[p1..p5], at }
+ *   days/{AAAA-MM-DD}/scores/{uid} → { name, avatar, total, exact, levels:[p1..p5], at }   (públic: sense operacions)
  *   players/{uid}                   → { name, avatar, sum, days, best, last, updatedAt }
  *   saves/{uid}                     → { data: "<progrés local en JSON>", at }   (privat)
  */
@@ -20,6 +20,42 @@
     for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
     return SAVIS[h % SAVIS.length] + ' ' + (100 + (Math.floor(h / SAVIS.length) % 900));
   }
+  // Nom per defecte que fèiem servir abans (nom real de Google abreujat, «Joan G.»): es substitueix per un àlies
+  function oldShortName(name) {
+    var p = String(name || '').trim().split(/s+/);
+    return p.length > 1 ? p[0] + ' ' + p[p.length - 1].charAt(0) + '.' : p[0];
+  }
+  // Mateix filtre que les regles de Firestore (validName): si no el passa, no es podria desar cap puntuació
+  function badName(name) { return /@/.test(name) || /\d{4,}/.test(name) || /www|http|\.(com|cat|es|net|org)/i.test(name); }
+  function looksReal(name, u) {
+    var dn = String((u && u.displayName) || '').trim();
+    return !!dn && (name === dn || name === oldShortName(dn));
+  }
+  // Tots els dies de repte fins avui (per actualitzar l'àlies a l'historial del rànquing)
+  function allDays() {
+    var P = global.Puzzle, out = [];
+    if (!P || !cfg.startDate) return out;
+    for (var k = cfg.startDate, i = 0; k <= P.dayKey() && i < 5000; k = P.addDays(k, 1), i++) out.push(k);
+    return out;
+  }
+  // Canvia nom i avatar a totes les puntuacions publicades i n'esborra les operacions (ja no són públiques)
+  function renameScores(uid, name, avatar) {
+    var del = global.firebase.firestore.FieldValue.delete();
+    return Promise.all(allDays().map(function (k) {
+      var ref = db.collection('days').doc(k).collection('scores').doc(uid);
+      return ref.get().then(function (d) {
+        if (!d.exists) return;
+        var x = d.data(), up = {}, rm = {};
+        if (x.name !== name) up.name = name;
+        if ((x.avatar || '') !== (avatar || '')) up.avatar = avatar || '';
+        if ('exprs' in x) rm.exprs = del;
+        if ('photo' in x) rm.photo = del;
+        // En dues passes: si les regles encara no permeten esborrar camps, almenys el nom canvia
+        var p = Object.keys(up).length ? ref.update(up) : Promise.resolve();
+        return p.then(function () { if (Object.keys(rm).length) return ref.update(rm).catch(function () {}); });
+      }).catch(function () { /* opcional */ });
+    }));
+  }
   function ts() { return global.firebase.firestore.FieldValue.serverTimestamp(); }
   function notify() { listeners.forEach(function (fn) { fn(user); }); }
 
@@ -32,13 +68,20 @@
         if (!u) { user = null; return notify(); }
         // Convidat amb nom (inici anònim): surt al rànquing però no té compte de Google
         var prevName = user && user.uid === u.uid ? user.name : '';
+        // Mai no fem servir el nom ni la foto del compte de Google: només un àlies
         user = { uid: u.uid, anon: !!u.isAnonymous, name: u.isAnonymous ? (prevName || 'Convidat') : alias(u.uid),
-          photo: u.photoURL || '', avatar: '' };
+          photo: '', avatar: '' };
         // Perfil personalitzat (nom i avatar), si n'hi ha
         db.collection('players').doc(u.uid).get().then(function (d) {
           var x = d.exists ? d.data() : {};
           if (x.name) user.name = x.name;
           if (x.avatar) user.avatar = x.avatar;
+          // Perfils antics amb el nom real de Google: passen a un àlies (perfil i historial del rànquing)
+          if (x.name && ((!u.isAnonymous && looksReal(x.name, u)) || badName(x.name))) {
+            user.name = alias(u.uid);
+            return db.collection('players').doc(u.uid).set({ name: user.name, updatedAt: ts() }, { merge: true })
+              .then(function () { return renameScores(u.uid, user.name, user.avatar); });
+          }
         }).catch(function () { /* sense perfil */ }).then(notify);
       });
     } catch (e) {
@@ -77,7 +120,7 @@
           // Mateix uid: es manté el nom triat; només deixa de ser convidat (onAuthStateChanged no salta)
           var u = r.user;
           user = { uid: u.uid, anon: false, name: (user && user.name) || alias(u.uid),
-            photo: u.photoURL || '', avatar: (user && user.avatar) || '' };
+            photo: '', avatar: (user && user.avatar) || '' };
           notify();
           return r;
         }).catch(function (e) {
@@ -130,7 +173,7 @@
           var p = r[1].exists ? r[1].data() : {};
           tx.set(scoreRef, {
             name: user.name, avatar: user.avatar || '', total: result.total, exact: result.exact,
-            levels: result.levels, exprs: result.exprs || [], at: ts()
+            levels: result.levels, at: ts()
           });
           tx.set(playerRef, {
             name: user.name, avatar: user.avatar || '',
@@ -148,10 +191,8 @@
       var data = { name: name, avatar: avatar || '', updatedAt: ts() };
       return db.collection('players').doc(user.uid).set(data, { merge: true }).then(function () {
         user.name = name; user.avatar = avatar || '';
-        var ref = scoresOf(dayKey).doc(user.uid);
-        return ref.get().then(function (d) {
-          if (d.exists) return ref.update({ name: name, avatar: avatar || '' });
-        }).catch(function () { /* la d'avui és opcional */ });
+        // El nou àlies substitueix l'antic a tot l'historial del rànquing (no només avui)
+        return renameScores(user.uid, name, avatar);
       });
     },
 

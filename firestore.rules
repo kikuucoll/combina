@@ -5,7 +5,11 @@ service cloud.firestore {
 
     function signedAs(uid) { return request.auth != null && request.auth.uid == uid; }
     function validName(d) {
-      return !('name' in d) || (d.name is string && d.name.size() >= 1 && d.name.size() <= 24);
+      // Àlies: sense @, sense 4 o més xifres seguides (telèfons, anys) i sense adreces web
+      return !('name' in d) || (d.name is string && d.name.size() >= 1 && d.name.size() <= 24
+        && !d.name.matches('.*@.*')
+        && !d.name.matches('.*[0-9]{4,}.*')
+        && !d.name.lower().matches('.*(www|http|[.](com|cat|es|net|org)).*'));
     }
     function validAvatar(d) {
       return !('avatar' in d) || (d.avatar is string && d.avatar.size() <= 12);
@@ -34,9 +38,10 @@ service cloud.firestore {
         && request.resource.data.at == request.time
         && validName(request.resource.data)
         && validAvatar(request.resource.data);
-      // Després només se'n pot canviar el nom i l'avatar (mai els punts)
+      // Després només se'n pot canviar el nom i l'avatar (mai els punts), i esborrar les operacions antigues
       allow update: if signedAs(uid)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'avatar', 'photo'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'avatar', 'photo', 'exprs'])
+        && !('exprs' in request.resource.data)
         && validName(request.resource.data)
         && validAvatar(request.resource.data);
       // Dret de supressió: el mateix jugador, només quan el seu perfil desapareix en la mateixa operació

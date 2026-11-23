@@ -57,7 +57,7 @@
         <button type="button" class="btn btn-ghost" data-action="age" data-age="adult">${MIN_AGE} o més</button>
       </div>
       <p class="small muted">Si en tens ${MIN_AGE} o més, en continuar acceptes la ${privacyLink('política de privadesa')}.
-        Al rànquing només es veuen el teu àlies i els teus resultats, mai el teu correu.</p>
+        Al rànquing només es veuen el teu àlies i els teus punts: mai el teu correu, el teu nom ni la teva foto.</p>
       ${existing ? '' : '<button type="button" class="btn-text" data-action="close-modal">Ara no</button>'}`);
   }
   function minorModal(deleted) {
@@ -90,6 +90,14 @@
     if (state.screen === 'joc' || !modalEl.hidden) return setTimeout(askExistingConsent, 4000);
     if (store.age === 'minor') return eraseAccount(false).then(() => minorModal(true), () => {});
     ageModal(true);
+  }
+
+  /* Àlies públic: res que pugui identificar algú (correus, xarxes, webs, telèfons, anys de naixement) */
+  function aliasError(name) {
+    if (!/^[\p{L}\p{N} .'’_-]{2,20}$/u.test(name)) return 'L’àlies ha de tenir de 2 a 20 lletres o xifres.';
+    if (/\d{4,}/.test(name)) return 'Massa xifres seguides: no hi posis telèfons ni anys.';
+    if (/www|http|\.(com|cat|es|net|org)/i.test(name)) return 'L’àlies no pot ser una web ni un usuari de xarxes.';
+    return '';
   }
 
   /* Dret de supressió: esborra compte, àlies, puntuacions i progrés del núvol */
@@ -425,7 +433,7 @@
   function header() {
     const u = B.user, s = streak(), av = u && parseAv(u.avatar);
     const who = av ? `<span class="av-glyph" style="color:${av.c.color}">${av.g}</span>`
-      : u ? (u.photo ? `<img src="${esc(u.photo)}" alt="" referrerpolicy="no-referrer">` : esc(initials(u.name))) : 'Tu';
+      : u ? esc(initials(u.name)) : 'Tu';
     const fr = store.freezes ? `<span class="chip-sep"></span>${ICON.shield}${store.freezes}` : '';
     // Convidat: accés discret per guardar el progrés amb Google
     const saveBtn = online() && !state.user ? `<button type="button" class="chip chip-save" data-action="signin" title="Inicia sessió amb Google per guardar el progrés">${ICON.google}<span>Guarda el progrés</span></button>` : '';
@@ -602,7 +610,8 @@
     const box = btn && (btn.closest('.name-row') || btn.closest('form'));
     const inp = (box && box.querySelector('.guest-name')) || document.querySelector('.guest-name');
     const name = (inp ? inp.value : '').replace(/\s+/g, ' ').trim();
-    if (!/^[\p{L}\p{N} .'’_-]{2,20}$/u.test(name)) return toast('L’àlies ha de tenir de 2 a 20 lletres o xifres.');
+    const err = aliasError(name);
+    if (err) return toast(err);
     withAge(() => doGuestJoin(name, btn));
   }
   function doGuestJoin(name, btn) {
@@ -2075,7 +2084,8 @@
   function saveProfile() {
     const inp = document.getElementById('pf-name');
     const name = (inp ? inp.value : '').replace(/\s+/g, ' ').trim();
-    if (!/^[\p{L}\p{N} .'’_-]{2,20}$/u.test(name)) return toast('El nom ha de tenir de 2 a 20 lletres o xifres.');
+    const err = aliasError(name);
+    if (err) return toast(err);
     const btn = modalEl.querySelector('[data-action="profile-save"]');
     if (btn) btn.disabled = true;
     B.saveProfile(name, state.pf.gi + '.' + state.pf.ci, state.dayKey).then(() => {
