@@ -1458,7 +1458,7 @@
     </section>`;
   }
 
-  // Targeta d'emojis estil Wordle: es copia al porta-retalls i, al mòbil, s'obre el menú de compartir
+  // Targeta d'emojis: es copia al porta-retalls i, al mòbil, s'obre el menú de compartir
   function shareText() {
     const d = day(), total = totalOf(d), r = SV.rankFor(total), stars = starsOf(d);
     // 🟡 exacte · 🟢 75 o més · 🟠 40–74 · 🔴 menys de 40
