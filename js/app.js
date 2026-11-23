@@ -25,6 +25,7 @@
     s.milestones = s.milestones || {};    // fites de ratxa: dies → dia
     s.bestStreak = s.bestStreak || 0;
     s.friends = s.friends || {};          // amics (uid → dia que es van afegir), per al rànquing d'amics
+    s.arxiu = s.arxiu || {};              // reptes anteriors jugats després: dia → punts del primer intent
     return s;
   }
   const store = load();
@@ -173,6 +174,7 @@
     // Desades antigues sense seenAch: els seus segells ja s'havien vist a l'altre dispositiu
     Object.keys(r.seenAch || r.ach || {}).forEach(id => { store.seenAch[id] = 1; });
     Object.keys(r.friends || {}).forEach(u => { if (!store.friends[u]) store.friends[u] = r.friends[u]; });
+    Object.keys(r.arxiu || {}).forEach(k => { if (!(k in store.arxiu)) store.arxiu[k] = r.arxiu[k]; });
     store.freezes = Math.min(2, Math.max(store.freezes, r.freezes || 0));
     store.bestStreak = Math.max(store.bestStreak, r.bestStreak || 0);
     store.seenHelp = store.seenHelp || !!r.seenHelp;
@@ -413,7 +415,7 @@
   /* ================= Navegació ================= */
   function go(screen) {
     if (screen !== 'joc') stopTicker();
-    if (state.practice && ['joc', 'correccio', 'aula'].indexOf(screen) < 0) exitPractice();
+    if (state.practice && (archive() ? ['joc', 'desglos'] : ['joc', 'correccio', 'aula']).indexOf(screen) < 0) exitPractice();
     // Segells nous: es marquen com a vistos en entrar a la vitrina, però l'animació dura tota la visita
     if (screen === 'vitrina' && state.screen !== 'vitrina') {
       state.newSeals = ACH.filter(a => store.ach[a.id] && !store.seenAch[a.id]).map(a => a.id);
@@ -474,7 +476,7 @@
   // Potències i arrels només als nivells avançats del repte diari (i sempre al mode aula)
   function advancedKeys() {
     if (state.screen === 'tutorial') return false;
-    if (state.practice) return true;
+    if (untimed()) return true;
     return state.level >= (C.advancedFrom == null ? 3 : C.advancedFrom);
   }
 
@@ -500,7 +502,7 @@
   }
 
   // Mode aula «sense calculadora»: no es veu el resultat ni els punts fins que valides
-  function noCalc() { return !!state.practice && store.calc === false && state.screen === 'joc'; }
+  function noCalc() { return untimed() && store.calc === false && state.screen === 'joc'; }
 
   /* Context actiu: el tutorial o el nivell en joc */
   function ctx() {
@@ -838,8 +840,9 @@
           ${cta}
           <ol class="card lvl-list" aria-label="Nivells d'avui">${rows}</ol>
           <p class="countdown-line">Nou repte en <span class="countdown gold" data-countdown></span></p>
-          <button type="button" class="btn-text aula-link" data-go="aula">Mode aula · sense temps</button>
+          ${arxiuButton('Juga reptes de dies anteriors')}
           ${rulesHTML()}
+          <button type="button" class="btn-text aula-link" data-go="aula">Mode aula · practica sense temps</button>
           ${aboutLink()}
         </div>
         <div class="side-col">
@@ -895,10 +898,10 @@
       const cls = k === i ? 'cur' : s && s.done ? (s.exact ? 'exact' : 'done') : '';
       return `<span class="${cls}"></span>`;
     }).join('');
-    const pr = !!state.practice;
+    const pr = untimed(), ar = archive();
     const head = `<header class="game-head">
-      <button type="button" class="icon-btn" data-go="${pr ? 'aula' : 'avui'}" aria-label="${pr ? 'Torna al mode aula' : 'Surt (el temps continua corrent)'}">${ICON.close}</button>
-      <div class="game-progress"><p class="kicker">${pr ? 'Mode aula · nivell ' + (i + 1) + (store.calc === false ? ' · sense calculadora' : ' · sense temps') : 'Nivell ' + (i + 1) + ' de 5 · ' + secsFor(i) + ' s'}</p><div class="segs" aria-hidden="true">${progress}</div></div>
+      <button type="button" class="icon-btn" data-go="${pr ? 'aula' : ar ? 'arxiu' : 'avui'}" aria-label="${pr ? 'Torna al mode aula' : ar ? 'Surt (aquest intent es perd)' : 'Surt (el temps continua corrent)'}">${ICON.close}</button>
+      <div class="game-progress"><p class="kicker">${pr ? 'Mode aula · nivell ' + (i + 1) + (store.calc === false ? ' · sense calculadora' : ' · sense temps') : (ar ? 'Repte nº ' + state.puzzle.number + ' · ' : '') + 'Nivell ' + (i + 1) + ' de 5 · ' + secsFor(i) + ' s'}</p><div class="segs" aria-hidden="true">${progress}</div></div>
       ${pr ? '<div class="timer off" aria-hidden="true"><span>∞</span></div>' : `<div class="timer" role="timer" aria-label="Temps restant">
         <svg viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="22" class="ring-bg"/><circle cx="26" cy="26" r="22" class="ring" id="ring"/></svg>
         <span id="timer-num">${secsFor(i)}</span>
@@ -951,7 +954,7 @@
 
   function afterJocRender() {
     const st = day().levels[state.level];
-    if (st && st.startAt && !st.done) { updateGame(); if (!state.practice) startTicker(); }
+    if (st && st.startAt && !st.done) { updateGame(); if (!untimed()) startTicker(); }
   }
 
   // Vibració tàctil suau (mòbils Android); se silencia amb el mateix botó que el so
@@ -1104,7 +1107,13 @@
     d.total = totalOf(d);
     state.celebrations = [];
     // Mode aula: correcció pas a pas (aquí sí, per aprendre amb calma)
-    if (state.practice) return go('correccio');
+    if (untimed()) return go('correccio');
+    // Repte anterior: com el del dia, però sense rànquing, ratxa ni segells
+    if (archive()) {
+      const done = doneCount(d) === state.puzzle.levels.length;
+      if (done) { d.finished = true; archiveFinished(d); }
+      return levelFlash(i, st, done);
+    }
     const n = i + 1;
     track('nivell_' + n + '_acabat', 'Nivell ' + n + ' acabat');
     if (st.value === null) track('nivell_' + n + '_buit', 'Nivell ' + n + ': sense expressió vàlida');
@@ -1144,7 +1153,7 @@
         <p class="lf-msg">${esc(msg)}</p>
         <p class="lf-total">Total <b id="lf-total">${prev}</b><small> / ${maxTotal()}</small></p>
         <p class="lf-next">${last ? 'Repte completat!' : `Nivell ${i + 2} · ${nextL.count} xifres · ${secsFor(i + 1)} s`}</p>
-        ${last ? '' : '<button type="button" class="btn-text lf-pause" data-action="pause">Fes una pausa</button>'}
+        ${last || archive() ? '' : '<button type="button" class="btn-text lf-pause" data-action="pause">Fes una pausa</button>'}
       </div>`;
     view.appendChild(el);
     const pe = el.querySelector('#lf-pts'), te = el.querySelector('#lf-total');
@@ -1158,7 +1167,7 @@
     });
     setTimeout(() => {
       if (tok !== state.flash || state.screen !== 'joc' || !el.isConnected) return;
-      if (last) go('resultat'); else beginLevel(i + 1);
+      if (last) go(archive() ? 'desglos' : 'resultat'); else beginLevel(i + 1);
     }, reduceMotion ? 1200 : (last ? 1500 : 1700));
   }
   state.flash = 0;
@@ -1478,6 +1487,7 @@
             <button type="button" class="btn btn-ghost" data-go="desglos">Com ho has resolt</button>
             <button type="button" class="btn btn-primary" data-go="ranquing">Rànquing →</button>
           </div>
+          ${arxiuButton('En vols més? Juga reptes anteriors')}
           <div class="next-card">
             <div class="countdown-row"><span class="kicker">Nou repte en</span><span class="countdown big" data-countdown></span></div>
             <p class="muted small center">Cada dia a les 9:00 h, cinc nivells nous. No perdis la ratxa!</p>
@@ -1780,7 +1790,7 @@
 
   /* ================= Pantalla: com ho has resolt (desglòs del dia) ================= */
   function screenDesglos() {
-    const d = day();
+    const d = day(), ar = archive();
     if (!d.finished) return screenAvui();
     const items = state.puzzle.levels.map((L, i) => {
       const st = d.levels[i] || {}, r = E.value(st.tokens || []);
@@ -1805,11 +1815,12 @@
     }).join('');
     return `<section class="screen desglos">
       <header class="game-head">
-        <button type="button" class="icon-btn" data-go="resultat" aria-label="Torna al resultat">${ICON.back}</button>
-        <div class="game-progress"><p class="kicker">Repte nº ${state.puzzle.number} · ${totalOf(d)} / ${maxTotal()}</p><h1 class="title sm">Com ho has resolt</h1></div>
+        <button type="button" class="icon-btn" data-go="${ar ? 'arxiu' : 'resultat'}" aria-label="${ar ? 'Torna als reptes anteriors' : 'Torna al resultat'}">${ICON.back}</button>
+        <div class="game-progress"><p class="kicker">Repte nº ${state.puzzle.number} · ${ar ? esc(P.prettyDay(state.practice.key)) + ' · ' : ''}${totalOf(d)} / ${maxTotal()}</p><h1 class="title sm">Com ho has resolt</h1></div>
       </header>
+      ${ar ? archiveNote() : ''}
       ${items}
-      <button type="button" class="btn btn-gold" data-action="share">${ICON.share}Comparteix el teu resultat</button>
+      ${ar ? '<button type="button" class="btn btn-primary" data-go="arxiu">Més reptes anteriors →</button>' : `<button type="button" class="btn btn-gold" data-action="share">${ICON.share}Comparteix el teu resultat</button>`}
     </section>`;
   }
 
@@ -2020,10 +2031,11 @@
   }
 
   /* ================= Mode aula: sense temps, sense rànquing ================= */
-  function startPractice(key, label) {
+  // timed = repte anterior amb rellotge (pantalla «Reptes anteriors»); sense = mode aula
+  function startPractice(key, label, timed) {
     if (!state.practice) state.savedPuzzle = state.puzzle;
     const pz = P.generateDay(key);
-    state.practice = { key, label, puzzle: pz, day: { levels: [], total: 0 } };
+    state.practice = { key, label, timed: !!timed, puzzle: pz, day: { levels: [], total: 0 } };
     state.puzzle = pz;
   }
   function exitPractice() {
@@ -2037,6 +2049,65 @@
     track('mode_aula', 'Mode aula');
   }
 
+  function untimed() { return !!state.practice && !state.practice.timed; }
+  function archive() { return !!state.practice && !!state.practice.timed; }
+
+  /* ================= Reptes anteriors: amb rellotge, sense rànquing ni ratxa =================
+   * Es guarda només el primer resultat de cada dia, i mai si aquell dia ja es va jugar de veritat. */
+  function pastKeys() {
+    const out = [];
+    for (let k = P.addDays(state.dayKey, -1), i = 0; k >= C.startDate && i < 90; k = P.addDays(k, -1), i++) out.push(k);
+    return out;
+  }
+  function pastScore(k) {
+    if (isDone(k)) return { pts: store.days[k].total, how: 'el mateix dia' };
+    if (k in store.arxiu) return { pts: store.arxiu[k], how: 'després' };
+    return null;
+  }
+  function playArchive(k) {
+    if (!(k < state.dayKey) || k < C.startDate) return;
+    startPractice(k, 'Repte nº ' + P.challengeNumber(k) + ' · ' + P.prettyDay(k), true);
+    track('arxiu-comencat', 'Repte anterior començat');
+    play();
+  }
+  function archiveFinished(d) {
+    const k = state.practice.key;
+    state.practice.first = !isDone(k) && !(k in store.arxiu);
+    if (state.practice.first) { store.arxiu[k] = d.total; save(); }
+    track('arxiu-acabat', 'Repte anterior acabat');
+  }
+  function archiveNote() {
+    const k = state.practice.key, sc = pastScore(k);
+    const msg = state.practice.first ? 'Desat a «Reptes anteriors». No compta per al rànquing ni per a la ratxa.'
+      : sc ? `Aquest intent no es desa: el teu resultat d’aquest repte continua sent <b class="chalk">${sc.pts}</b> (jugat ${sc.how}).` : '';
+    return msg ? `<p class="muted small center">${msg}</p>` : '';
+  }
+  function arxiuButton(label) {
+    const keys = pastKeys();
+    if (!keys.length) return '';
+    const pending = keys.filter(k => !pastScore(k)).length;
+    return `<button type="button" class="btn btn-arxiu btn-split" data-go="arxiu"><span>${label}</span><span class="btn-meta">${pending ? `<b class="arxiu-n" title="${pending} per jugar">${pending}</b>` : ''}→</span></button>`;
+  }
+  function screenArxiu() {
+    trackOnce('arxiu-obert', 'Reptes anteriors obert');
+    const keys = pastKeys();
+    const rows = keys.map(k => {
+      const sc = pastScore(k);
+      const right = sc ? `<b class="${sc.pts >= 400 ? 'gold' : ''}">${sc.pts}</b>` : '<span class="gold">Juga →</span>';
+      return `<li><button type="button" class="lvl-row aula-row arxiu-row" data-action="arxiu-play" data-day="${k}">
+        <span>Nº ${P.challengeNumber(k)}</span><span class="muted small">${esc(P.prettyDay(k))}${sc ? ' · ' + sc.how : ''}</span><span class="lvl-right">${right}</span></button></li>`;
+    }).join('');
+    const pending = keys.filter(k => !pastScore(k)).length;
+    return `<section class="screen arxiu">
+      ${header()}
+      <p class="kicker">${pending ? (pending === 1 ? 'Te n’has perdut 1' : 'Te n’has perdut ' + pending) : 'Els tens tots fets'}</p>
+      <h1 class="title">Reptes anteriors</h1>
+      <p class="lead">Juga els dies que t’has perdut, amb el mateix rellotge que el repte diari. No compten per al rànquing ni per a la ratxa, i de cada dia es guarda només el primer resultat.</p>
+      ${rows ? `<ol class="card lvl-list aula-list">${rows}</ol>` : '<p class="muted center">Encara no hi ha reptes anteriors: torna demà!</p>'}
+      <button type="button" class="btn-text" data-go="avui">Torna al repte d'avui</button>
+    </section>`;
+  }
+
   function screenAula() {
     if (!state.practice) randomPractice();
     const pr = state.practice, pz = pr.puzzle, d = pr.day;
@@ -2046,18 +2117,11 @@
       return `<li><button type="button" class="lvl-row aula-row" data-action="aula-level" data-level="${i}">
         <span>Nivell ${i + 1}</span><span class="muted small">${L.count} xifres</span><span class="lvl-right">${right}</span></button></li>`;
     }).join('');
-    // Reptes anteriors (mai el d'avui, perquè no se'n vegin les solucions abans de jugar-lo)
-    const past = [];
-    for (let i = 1; i <= 7; i++) {
-      const k = P.addDays(state.dayKey, -i);
-      if (k < C.startDate) break;
-      past.push(`<button type="button" class="day-chip${pr.key === k ? ' on' : ''}" data-action="aula-day" data-day="${k}">${P.shortDay(k)} ${+k.slice(8)}<small>nº ${P.challengeNumber(k)}</small></button>`);
-    }
     return `<section class="screen aula">
       ${header()}
       <p class="kicker">Mode aula · sense temps</p>
       <h1 class="title">Pràctica</h1>
-      <p class="lead">Sense rellotge i sense comptar per al rànquing ni per a la ratxa. Ideal per projectar a classe o practicar tant com vulguis.</p>
+      <p class="lead">Reptes nous cada cop que els generes, sense rellotge i sense comptar per al rànquing ni per a la ratxa. Ideal per projectar a classe o practicar tant com vulguis.</p>
       <div class="calc-toggle" role="radiogroup" aria-label="Calculadora">
         <button type="button" role="radio" aria-checked="${store.calc !== false}" class="calc-opt${store.calc !== false ? ' on' : ''}" data-action="calc" data-calc="1">
           <b class="calc-g">= 24</b><strong>Amb calculadora</strong><small>Veus el resultat i els punts mentre escrius.</small></button>
@@ -2067,12 +2131,11 @@
       <p class="kicker gold">${esc(pr.label)}</p>
       <ol class="card lvl-list aula-list">${rows}</ol>
       <button type="button" class="btn btn-primary" data-action="aula-new">Genera un repte nou</button>
-      ${past.length ? `<div><p class="kicker">Reptes anteriors</p><div class="day-chips">${past.join('')}</div></div>` : ''}
       <button type="button" class="btn-text" data-go="avui">Torna al repte d'avui</button>
     </section>`;
   }
 
-  const SCREENS = { desglos: screenDesglos, sobre: screenSobre, aula: screenAula, entrada: screenEntrada, tutorial: screenTutorial, avui: screenAvui, joc: screenJoc, correccio: screenCorreccio, resultat: screenResultat, ranquing: screenRanquing, savis: screenSavis, vitrina: screenVitrina };
+  const SCREENS = { arxiu: screenArxiu, desglos: screenDesglos, sobre: screenSobre, aula: screenAula, entrada: screenEntrada, tutorial: screenTutorial, avui: screenAvui, joc: screenJoc, correccio: screenCorreccio, resultat: screenResultat, ranquing: screenRanquing, savis: screenSavis, vitrina: screenVitrina };
 
   /* ================= Modals ================= */
   function openModal(html) {
@@ -2286,7 +2349,7 @@
     if (next < 0) return go('resultat');
     const st = day().levels[next];
     // Un nivell que ja corre (el rellotge no s'atura) es reprèn sense compte enrere
-    if (state.practice || (st && st.startAt)) return beginLevel(next);
+    if (untimed() || (st && st.startAt)) return beginLevel(next);
     countdown(() => { const n = nextLevel(); if (n < 0) go('resultat'); else beginLevel(n); });
   }
 
@@ -2387,8 +2450,8 @@
     switch (t.dataset.action) {
       case 'aula-level': beginLevel(+t.dataset.level); break;
       case 'aula-new': randomPractice(); render(); break;
+      case 'arxiu-play': playArchive(t.dataset.day); break;
       case 'calc': store.calc = t.dataset.calc === '1'; save(); track(store.calc ? 'aula_amb_calculadora' : 'aula_sense_calculadora', 'Calculadora aula'); render(); break;
-      case 'aula-day': startPractice(t.dataset.day, 'Repte nº ' + P.challengeNumber(t.dataset.day) + ' · ' + P.prettyDay(t.dataset.day)); render(); break;
       case 'install': install(); break;
       case 'challenge': challenge(); break;
       case 'profile-save': saveProfile(); break;

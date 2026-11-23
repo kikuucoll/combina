@@ -1263,3 +1263,12 @@ html, body, button, a, .tile, .key { touch-action: manipulation; }
 .btn.btn-danger, .btn.btn-danger:hover { background: #B5523F; color: #fff; box-shadow: none; }
 .about-links .about-link { margin-top: 0; }
 .about-links .btn-text { font-size: 13px; color: var(--muted); }
+
+/* Reptes anteriors: més visible que «Normes», menys que el botó principal */
+.btn-arxiu { width: 100%; margin-top: 14px; background: rgba(var(--gold-rgb), .08); border-color: rgba(var(--gold-rgb), .45); color: var(--gold-t); }
+.btn-arxiu:hover { background: rgba(var(--gold-rgb), .14); border-color: var(--gold); box-shadow: 0 0 18px rgba(var(--gold-rgb), .14); }
+.btn-arxiu .btn-meta { color: rgba(var(--gold-rgb), .75); }
+.btn-arxiu > span:first-child { text-align: left; min-width: 0; line-height: 1.25; text-wrap: balance; }
+.btn-arxiu .btn-meta { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; flex: none; }
+.arxiu-n { min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: rgba(var(--gold-rgb), .2); color: var(--gold-t); font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; }
+.btn-arxiu.btn-split { font-size: 15px; padding: 0 18px; gap: 8px; }
