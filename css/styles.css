@@ -353,13 +353,14 @@ button.chip:hover { border-color: #4A525E; }
   background: #0E1217; border: 1px solid var(--line-2);
   box-shadow: inset 0 2px 6px rgba(0, 0, 0, .6), 0 0 0 1px rgba(255, 255, 255, .02);
 }
-.rl-zones { position: absolute; inset: 3px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); pointer-events: none; z-index: 2; }
-.rl-zones i { display: block; border-right: 1px solid rgba(11, 14, 18, .55); }
+/* Separacions de centena: per sota del farciment (només es veuen a la part buida; la part plena és contínua) */
+.rl-zones { position: absolute; inset: 3px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); pointer-events: none; z-index: 0; }
+.rl-zones i { display: block; border-right: 1px solid rgba(255, 255, 255, .07); }
 .rl-zones i:last-child { border-right: 0; }
 .rl-fill {
   --fc: #EDE8DC; --frgb: 237, 232, 220;
   position: absolute; left: 3px; top: 3px; bottom: 3px; width: calc((100% - 6px) * var(--p, 0)); min-width: 0;
-  border-radius: 999px; overflow: hidden;
+  border-radius: 999px; overflow: hidden; z-index: 1;
   background-color: var(--fc);
   background-image:
     linear-gradient(180deg, rgba(255, 255, 255, .45), rgba(255, 255, 255, .08) 45%, rgba(0, 0, 0, .12)),

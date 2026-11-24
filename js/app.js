@@ -238,7 +238,12 @@
     tut: { tokens: [], startAt: 1, done: false }, tutResult: null,
     celebrations: []
   };
-  state.puzzle = P.generateDay(state.dayKey);
+  // El N5 va canviar el dia hardFrom: qui ja l'havia començat abans (nivell sense «v2») conserva el d'abans
+  function puzzleFor(k) {
+    const d = store.days[k], lv = d && d.levels && d.levels[4];
+    return P.generateDay(k, { legacy5: !!(lv && lv.startAt && !lv.v2) });
+  }
+  state.puzzle = puzzleFor(state.dayKey);
 
   function day(k) {
     if (!k && state.practice) return state.practice.day;     // mode aula: partida a part, no es desa
@@ -778,7 +783,7 @@
     return `<details class="card rules-box">
       <summary>Normes i puntuació</summary>
       <ul class="tut-rules">
-        <li><b>Cada dia a les 9:00</b>, un repte nou amb <b>5 nivells</b> (de 4 a 8 xifres de l'1 al 20).</li>
+        <li><b>Cada dia a les 9:00</b>, un repte nou amb <b>5 nivells</b> (de 4 a 7 xifres). L'últim és el <b>repte de debò</b>: hi ha poques maneres d'encertar-lo i sovint cal combinar <b>+ − × ÷</b>.</li>
         <li>Tens de <b>${Math.min(...levelTimes())} a ${Math.max(...levelTimes())} segons</b> per nivell. Si s'acaba el temps, es corregeix el que hi hagi.</li>
         <li>Pots fer servir <b>+ − × ÷</b> i <b>parèntesis</b>. Als nivells 4 i 5 també <b>potències</b> (l'exponent és una xifra) i <b>arrels</b>.</li>
         <li><b>Arribar a l'objectiu exacte val 100 punts</b> (500 al dia). Si a més fas servir <b>totes les xifres</b>, guanyes una <b class="gold">estrella ★</b>. Si no hi arribes, <b>cada unitat de distància resta un 10 %</b>: a 1, 90 punts; a 5, 50; a 10 o més, 0.</li>
@@ -1111,7 +1116,7 @@
     const d = day();
     if (!(d.levels[i] && d.levels[i].startAt)) {
       if (i === 0 && !state.practice) track('repte-comencat', 'Repte començat');
-      d.levels[i] = { tokens: [], startAt: Date.now(), done: false };
+      d.levels[i] = { tokens: [], startAt: Date.now(), done: false, v2: true };
       save();
     }
     go('joc');
@@ -1121,7 +1126,7 @@
     const d = day(), i = state.level;
     if (d.levels[i] && d.levels[i].startAt) return;
     if (i === 0 && !state.practice) track('repte-comencat', 'Repte començat');
-    d.levels[i] = { tokens: [], startAt: Date.now(), done: false };
+    d.levels[i] = { tokens: [], startAt: Date.now(), done: false, v2: true };
     save();
     render();
   }
@@ -2072,14 +2077,14 @@
   // timed = repte anterior amb rellotge (pantalla «Reptes anteriors»); sense = mode aula
   function startPractice(key, label, timed) {
     if (!state.practice) state.savedPuzzle = state.puzzle;
-    const pz = P.generateDay(key);
+    const pz = puzzleFor(key);
     state.practice = { key, label, timed: !!timed, puzzle: pz, day: { levels: [], total: 0 } };
     state.puzzle = pz;
   }
   function exitPractice() {
     if (!state.practice) return;
     state.practice = null;
-    state.puzzle = state.savedPuzzle || P.generateDay(state.dayKey);
+    state.puzzle = state.savedPuzzle || puzzleFor(state.dayKey);
     state.savedPuzzle = null;
   }
   function randomPractice() {
@@ -2578,10 +2583,10 @@
       const playing = state.screen === 'joc' && st && st.startAt && !st.done;
       if (state.practice) {
         // A l'aula no interrompem la classe: el repte nou s'agafa en sortir
-        state.dayKey = k; state.savedPuzzle = P.generateDay(k); applyFreezes();
+        state.dayKey = k; state.savedPuzzle = puzzleFor(k); applyFreezes();
       } else if (!playing) {
         state.dayKey = k;
-        state.puzzle = P.generateDay(k);
+        state.puzzle = puzzleFor(k);
         applyFreezes();
         if (state.screen !== 'entrada' && state.screen !== 'tutorial') go('avui');
       }

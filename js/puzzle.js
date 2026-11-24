@@ -237,25 +237,119 @@
     return null;
   }
 
+  /* ---------- Nivell 5 «de debò» (des de COMBINA_CONFIG.hardFrom) ----------
+   * Abans, el N5 tenia 8 xifres i un centenar de combinacions que arribaven a l'objectiu
+   * (més que cap altre nivell!). Ara: 6 xifres de l'1 al 20, objectiu 151–300, la solució
+   * prevista fa servir + − × ÷ i totes les xifres (★ sempre possible), i només 6–12
+   * combinacions de xifres diferents hi arriben exactes (N4 en té ~44, N3 ~20). */
+  var HARD = { count: 6, maxNum: 20, lo: 151, hi: 300, minWays: 6, maxWays: 12, attempts: 6000 };
+
+  function useHard(k) {
+    var from = cfg().hardFrom;
+    return !!from && (!/^\d{4}-\d{2}-\d{2}$/.test(k) || k >= from);
+  }
+
+  /* Quantes combinacions de xifres (subconjunts) arriben exactes a l'objectiu amb + − × ÷ xʸ √.
+   * Només valors enters positius ≤ 5000 (els decimals intermedis són rars). Para quan en passa de `stop`. */
+  var WAYS_CAP = 5000;
+  function countWays(nums, target, stop) {
+    var n = nums.length, N = 1 << n, reach = new Array(N), seen = new Int32Array(WAYS_CAP + 1);
+    var stamp = 0, ways = 0, masks = [], m, i, j, out;
+    function bits(x) { var c = 0; while (x) { c += x & 1; x >>= 1; } return c; }
+    function add(v) { if (v > 0 && v <= WAYS_CAP && seen[v] !== stamp) { seen[v] = stamp; out.push(v); } }
+    for (m = 1; m < N; m++) masks.push(m);
+    masks.sort(function (a, b) { return bits(a) - bits(b) || a - b; });
+    for (var q = 0; q < masks.length; q++) {
+      m = masks[q]; stamp++; out = [];
+      if ((m & (m - 1)) === 0) add(nums[31 - Math.clz32(m)]);
+      else {
+        var low = m & -m;
+        for (var a = (m - 1) & m; a > 0; a = (a - 1) & m) {
+          if (!(a & low)) continue;               // cada partició un sol cop
+          var A = reach[a], B = reach[m ^ a];
+          for (i = 0; i < A.length; i++) for (j = 0; j < B.length; j++) {
+            var x = A[i], y = B[j];
+            add(x + y); add(x > y ? x - y : y - x); add(x * y);
+            if (x % y === 0) add(x / y);
+            if (y % x === 0) add(y / x);
+            if (y <= 4 && x > 1) add(Math.pow(x, y));
+            if (x <= 4 && y > 1) add(Math.pow(y, x));
+          }
+        }
+      }
+      for (i = 0, j = out.length; i < j; i++) {
+        var r = Math.round(Math.sqrt(out[i]));
+        if (r > 1 && r * r === out[i]) add(r);
+      }
+      reach[m] = out;
+      if (seen[target] === stamp && ++ways > stop) return ways;
+    }
+    return ways;
+  }
+
+  /* Construeix una expressió amb totes les xifres que fa servir + − × ÷ (i una operació més) */
+  function buildHard(rng) {
+    var nums = shuffle(rng, Array.from({ length: HARD.maxNum }, function (_, i) { return i + 1; })).slice(0, HARD.count);
+    var pool = nums.map(function (v) { return { v: v, s: String(v), p: 4 }; });
+    var ops = ['+', '-', '*', '/'];
+    for (var e = 4; e < HARD.count - 1; e++) ops.push('+-*'.charAt(Math.floor(rng() * 3)));
+    shuffle(rng, ops);
+    for (var o = 0; o < ops.length; o++) {
+      var op = ops[o], pairs = [], done = false;
+      for (var i = 0; i < pool.length; i++) for (var j = 0; j < pool.length; j++) if (i !== j) pairs.push([i, j]);
+      shuffle(rng, pairs);
+      for (var q = 0; q < pairs.length && !done; q++) {
+        var a = pool[pairs[q][0]], b = pool[pairs[q][1]], v;
+        if (op === '+') v = a.v + b.v;
+        else if (op === '-') { if (a.v <= b.v) continue; v = a.v - b.v; }
+        else if (op === '*') { if (a.v < 2 || b.v < 2) continue; v = a.v * b.v; }
+        else { if (b.v < 2 || a.v % b.v) continue; v = a.v / b.v; }
+        if (v > 5000) continue;
+        var P = PREC[op];
+        var A = a.p < P ? '(' + a.s + ')' : a.s;
+        var B = (b.p < P || (b.p === P && (op === '-' || op === '/'))) ? '(' + b.s + ')' : b.s;
+        pool = pool.filter(function (x) { return x !== a && x !== b; });
+        pool.push({ v: v, s: A + ' ' + op + ' ' + B, p: P });
+        done = true;
+      }
+      if (!done) return null;
+    }
+    return { count: HARD.count, nums: nums, target: pool[0].v, solution: pool[0].s };
+  }
+
+  function genHard(k) {
+    var rng = rngFor('combina|' + k + '|4|hard'), backup = null, backupWays = Infinity;
+    for (var t = 0; t < HARD.attempts; t++) {
+      var c = buildHard(rng);
+      if (!c || c.target < HARD.lo || c.target > HARD.hi || c.nums.indexOf(c.target) >= 0) continue;
+      var w = countWays(c.nums, c.target, Math.max(HARD.maxWays, backupWays - 1));
+      if (w >= HARD.minWays && w <= HARD.maxWays) { c.ways = w; return c; }
+      if (w < backupWays) { backup = c; backup.ways = w; backupWays = w; }   // reserva: la que en tingui menys
+    }
+    return backup;
+  }
+
+  // opts.legacy5: el N5 d'abans (per a qui ja l'havia començat el dia del canvi)
   var cache = {};
-  function generateDay(k) {
-    if (cache[k]) return cache[k];
+  function generateDay(k, opts) {
+    var legacy = !!(opts && opts.legacy5), ck = k + (legacy ? '|v1' : '');
+    if (cache[ck]) return cache[ck];
     var c = cfg(), total = c.dailyTotal || 500;
     var n = /^\d{4}-\d{2}-\d{2}$/.test(k) ? challengeNumber(k) : 0;
     var levels = c.levelCounts.map(function (count, i) {
-      var cand = genCandidates(rngFor('combina|' + k + '|' + i), count, i, n, 1, k)[0];
+      var cand = (i === 4 && !legacy && useHard(k) && genHard(k)) || genCandidates(rngFor('combina|' + k + '|' + i), count, i, n, 1, k)[0];
       if (cand) return cand;
       // Reserva (pràcticament impossible): la suma de totes les xifres
       var nums = shuffle(rngFor('combina|' + k + '|' + i + '|r'), Array.from({ length: 20 }, function (_, j) { return j + 1; })).slice(0, count);
       return { count: count, nums: nums, target: nums.reduce(function (a, b) { return a + b; }, 0), solution: nums.join(' + ') };
     });
-    cache[k] = { key: k, number: n, total: total, levels: levels };
-    return cache[k];
+    cache[ck] = { key: k, number: n, total: total, levels: levels };
+    return cache[ck];
   }
 
   global.Puzzle = {
     dayKey: dayKey, addDays: addDays, challengeNumber: challengeNumber,
     msToReset: msToReset, prettyDay: prettyDay, shortDay: shortDay,
-    generateDay: generateDay
+    generateDay: generateDay, countWays: countWays
   };
 })(typeof window !== 'undefined' ? window : globalThis);

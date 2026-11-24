@@ -7,7 +7,7 @@ Joc web (mòbil i ordinador) sense dependències: HTML, CSS i JavaScript. Funcio
 ## Com funciona
 
 - **Repte diari automàtic.** Cada dia a les **9:00 (hora de Barcelona)** canvia el repte. Els 5 nivells es generen a partir de la data, de manera que tothom rep exactament el mateix repte sense necessitat de servidor.
-- **Nivells:** 4, 5, 6, 7 i 8 xifres (de l'1 al 20), amb 40, 40, 60, 60 i 65 segons.
+- **Nivells:** 4, 5, 6, 7 i 6 xifres, amb 40, 40, 60, 60 i 65 segons. Des del 24/11/2026 el nivell 5 és el «repte de debò» (`hardFrom`): 6 xifres de l'1 al 20, objectiu 151–300, la solució combina + − × ÷ i només 6–12 combinacions de xifres hi arriben exactes (abans: 8 xifres i ~110 combinacions).
 - **Operacions:** + − × ÷, parèntesis, potències (l'exponent també és una xifra) i arrels quadrades. Cada xifra, un sol cop.
 - **Puntuació:** cada ronda val fins a **100 punts** (500 al dia). Punts = precisió × xifres: el màxim de la ronda va de 70 (`levelBase`, poques xifres) a 100 (`levelMax`, totes les xifres), i cada unitat de distància a l'objectiu en resta un 10 % (`penaltyPerUnit`). Cada repte es pot resoldre exactament fent servir totes les xifres. Si s'acaba el temps, es corregeix el que hi hagi escrit.
 - **Correcció animada** pas a pas seguint la jerarquia de les operacions, i una solució exacta per aprendre.
