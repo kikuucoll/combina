@@ -5,6 +5,7 @@
  *   days/{AAAA-MM-DD}/scores/{uid} → { name, avatar, total, exact, levels:[p1..p5], at }   (públic: sense operacions)
  *   players/{uid}                   → { name, avatar, sum, days, best, last, updatedAt }
  *   saves/{uid}                     → { data: "<progrés local en JSON>", at }   (privat)
+ *   stats/{AAAA-MM-DD}              → { n, sum }   (recompte anònim de tots els qui acaben el repte)
  */
 (function (global) {
   'use strict';
@@ -216,6 +217,18 @@
     pushSave: function (obj) {
       if (!enabled || !user) return Promise.resolve();
       return db.collection('saves').doc(user.uid).set({ data: JSON.stringify(obj), at: ts() });
+    },
+
+    /* Recompte anònim del dia: quantes persones l'han acabat i la suma dels seus punts.
+     * stats/{AAAA-MM-DD} → { n, sum }. Sense cap nom ni identificador; també compta els convidats. */
+    countPlayer: function (dayKey, total) {
+      if (!enabled) return Promise.reject(new Error('sense Firebase'));
+      var inc = global.firebase.firestore.FieldValue.increment;
+      return db.collection('stats').doc(dayKey).set({ n: inc(1), sum: inc(total) }, { merge: true });
+    },
+    dayStats: function (dayKey) {
+      if (!enabled) return Promise.resolve(null);
+      return db.collection('stats').doc(dayKey).get().then(function (d) { return d.exists ? d.data() : null; });
     },
 
     /* Un jugador concret (per als reptes entre amics) */

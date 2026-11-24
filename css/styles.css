@@ -381,6 +381,8 @@ button.chip:hover { border-color: #4A525E; }
 @keyframes sweep { 0% { left: -40%; opacity: 1; } 100% { left: 110%; opacity: 0; } }
 .rl-pct { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); z-index: 3; font-family: var(--mono); font-size: 10px; font-weight: 600; color: var(--muted); transition: color .3s; }
 .rl-pct.over { color: var(--ink); }
+.day-stats { margin: 4px 0 12px; text-align: center; font-size: 13px; color: var(--muted); }
+.day-stats b { color: var(--chalk); font-family: var(--mono); font-weight: 600; }
 .rl-ticks { position: relative; height: 16px; margin-top: 10px; }
 .rl-ticks span { position: absolute; transform: translateX(-50%); font-family: var(--mono); font-size: 10px; color: var(--faint); }
 .rl-ticks span:first-child { transform: none; }

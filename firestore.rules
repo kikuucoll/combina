@@ -90,6 +90,22 @@ service cloud.firestore {
       allow delete: if signedAs(uid);
     }
 
+    // Recompte anònim del dia: { n: persones que l'han acabat, sum: suma dels seus punts }.
+    // Sense cap identificador. Cada escriptura només pot sumar 1 persona i de 0 a 500 punts.
+    match /stats/{day} {
+      allow read: if true;
+      allow create: if day.matches('^20[0-9]{2}-[0-9]{2}-[0-9]{2}$')
+        && request.resource.data.keys().hasOnly(['n', 'sum'])
+        && request.resource.data.n == 1
+        && request.resource.data.sum is int
+        && request.resource.data.sum >= 0 && request.resource.data.sum <= 500;
+      allow update: if request.resource.data.keys().hasOnly(['n', 'sum'])
+        && request.resource.data.n == resource.data.n + 1
+        && request.resource.data.sum is int
+        && request.resource.data.sum >= resource.data.sum
+        && request.resource.data.sum <= resource.data.sum + 500;
+    }
+
     // Progrés privat (ratxa, segells, dies jugats): només el propi jugador
     match /saves/{uid} {
       allow read: if signedAs(uid);

@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="ca">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fitxa d'aula · combina ≈</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+/* Fitxa en paper de «combina ≈»: mateixa tipografia (STIX Two Text · IBM Plex Mono · IBM Plex Sans),
+ * colors invertits per imprimir (tinta sobre paper) i l'or de Gauss només com a accent fi. */
+:root {
+  --ink: #0B0E12; --paper: #FFFFFF; --chalk: #ECE8DF;
+  --muted: #5E6672; --faint: #9AA3B0; --line: #C9CED6; --grid: #E4E7EC;
+  --gold: #C9952E; --gold-soft: #F4E7C8;
+  --serif: 'STIX Two Text', 'Cambria Math', Georgia, serif;
+  --mono: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
+  --sans: 'IBM Plex Sans', system-ui, 'Segoe UI', sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: #1B2027; color: var(--ink); font-family: var(--sans);
+  -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+@page { size: A4; margin: 0; }
+
+/* ---------- Barra de pantalla (no s'imprimeix) ---------- */
+.bar { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center;
+  padding: 12px 16px; background: #0B0E12; color: var(--chalk); border-bottom: 1px solid #262D37; font-size: 14px; }
+.bar .wm { font-family: var(--serif); font-size: 22px; margin-right: 8px; }
+.bar .wm em { font-style: italic; } .bar .wm b { font-weight: 400; color: #E6B85C; }
+.bar button, .bar select { font: inherit; color: inherit; background: #151A21; border: 1px solid #2E3641; border-radius: 10px; padding: 8px 12px; cursor: pointer; }
+.bar select { min-width: 190px; }
+.bar button:disabled { opacity: .35; cursor: default; }
+.bar .primary { background: #ECE8DF; color: #0B0E12; border: 0; font-weight: 600; }
+.bar label { display: inline-flex; gap: 6px; align-items: center; color: #9AA3B0; cursor: pointer; }
+
+/* ---------- Full A4 ---------- */
+.sheet { width: 210mm; height: 297mm; margin: 18px auto; background: var(--paper); padding: 11mm 12mm 9mm;
+  display: flex; flex-direction: column; gap: 4mm; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,.45); position: relative; }
+.kicker { font-family: var(--mono); font-size: 7.6pt; letter-spacing: 1.6pt; text-transform: uppercase; color: var(--muted); margin: 0; }
+.gold { color: var(--gold); }
+p { margin: 0; }
+
+.head { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 1.4pt solid var(--ink); padding-bottom: 2.5mm; }
+.wordmark { font-family: var(--serif); font-size: 25pt; line-height: 1; display: inline-flex; gap: 4pt; align-items: baseline; }
+.wordmark em { font-style: italic; letter-spacing: -.4pt; } .wordmark b { font-weight: 400; color: var(--gold); }
+.head .sub { margin-top: 1.5mm; }
+.head .right { text-align: right; }
+.head .right .num { font-family: var(--serif); font-size: 15pt; margin-top: .8mm; }
+
+.who { display: grid; grid-template-columns: 1fr 34mm 30mm; gap: 6mm; font-size: 9pt; color: var(--muted); }
+.who span { display: flex; gap: 2mm; align-items: flex-end; }
+.who i { flex: 1; border-bottom: .6pt solid var(--line); height: 5mm; }
+
+.rules { display: grid; grid-template-columns: 1.15fr 1fr; gap: 5mm; border: .8pt solid var(--line); border-radius: 3mm; padding: 3mm 4mm; font-size: 8.6pt; line-height: 1.38; }
+.rules ol { margin: 0; padding-left: 4mm; }
+.rules li { margin: 0 0 .6mm; }
+.rules b { font-weight: 600; }
+.op { font-family: var(--serif); font-size: 10.5pt; }
+.ruler { display: grid; grid-template-columns: 13mm repeat(11, 1fr); font-family: var(--mono); font-size: 7.4pt; text-align: center; margin-top: 1.4mm; }
+.ruler div { padding: .8mm 0; border-bottom: .5pt solid var(--line); }
+.ruler .h { text-align: left; color: var(--muted); font-family: var(--sans); font-size: 7pt; }
+.ruler .ex { background: var(--gold-soft); font-weight: 600; }
+
+/* ---------- Nivells ---------- */
+.levels { flex: 1; display: flex; flex-direction: column; gap: 2.6mm; min-height: 0; }
+.lvl { flex: 1; display: grid; grid-template-columns: 34mm 1fr; border: .8pt solid var(--line); border-radius: 3mm; overflow: hidden; min-height: 0; }
+/* Objectiu en tinta clara (estalvi de tòner): fons guix, filet d'or com al joc */
+.lvl .goal { background: #F7F4EE; border-right: .8pt solid var(--line); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .6mm; padding: 2mm; }
+.lvl .goal .kicker { color: var(--gold); font-size: 7pt; letter-spacing: 2pt; }
+.lvl .goal .t { font-family: var(--serif); font-weight: 500; font-size: 36pt; line-height: 1; letter-spacing: -1pt; padding: 0 1.5mm .6mm; border-bottom: 1.6pt solid var(--gold); }
+.lvl .goal .n { font-family: var(--mono); font-size: 6.8pt; color: var(--muted); letter-spacing: 1pt; text-transform: uppercase; margin-top: .6mm; }
+.lvl .work { display: flex; flex-direction: column; padding: 2.4mm 3.4mm 2mm; gap: 1.8mm; min-width: 0; }
+.tiles { display: flex; gap: 2mm; align-items: center; }
+.tile { width: 10.5mm; height: 9mm; border: .9pt solid var(--ink); border-radius: 2mm; display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-weight: 500; font-size: 12.5pt; }
+.tiles .note { margin-left: auto; font-size: 7.2pt; color: var(--faint); text-align: right; line-height: 1.3; }
+.grid { flex: 1; min-height: 10mm; border-radius: 1.5mm; border: .5pt solid var(--grid);
+  background-image: linear-gradient(var(--grid) .5pt, transparent .5pt), linear-gradient(90deg, var(--grid) .5pt, transparent .5pt);
+  background-size: 5mm 5mm; position: relative; }
+.grid .lbl { position: absolute; left: 1.6mm; top: 1mm; font-size: 6.8pt; color: var(--faint); background: #fff; padding: 0 1mm; }
+.res { display: grid; grid-template-columns: 1.5fr 1fr 1fr auto; gap: 4mm; font-size: 8.4pt; color: var(--muted); align-items: end; }
+.res span { display: flex; align-items: flex-end; gap: 1.6mm; white-space: nowrap; }
+.res i { flex: 1; border-bottom: .7pt solid var(--ink); height: 5mm; }
+.res .eq { font-family: var(--serif); font-size: 13pt; color: var(--ink); }
+.star { font-size: 7.6pt; color: var(--muted); align-items: center !important; gap: 1.2mm; }
+.star::before { content: '★'; font-size: 10pt; color: var(--line); }
+
+/* ---------- Total i savis ---------- */
+.foot { display: grid; grid-template-columns: 38mm 1fr; gap: 5mm; align-items: stretch; }
+.total { border: 1.2pt solid var(--ink); border-radius: 3mm; display: flex; flex-direction: column; justify-content: center; padding: 2mm 3.5mm; }
+.total .v { display: flex; align-items: flex-end; gap: 1.5mm; font-family: var(--serif); font-size: 15pt; margin-top: 1mm; }
+.total .v i { flex: 1; border-bottom: .8pt solid var(--ink); height: 8mm; }
+.savis { display: grid; grid-template-columns: repeat(5, 1fr); border: .8pt solid var(--line); border-radius: 3mm; overflow: hidden; }
+.savis div { padding: 2mm 1mm 1.6mm; text-align: center; border-left: .6pt solid var(--line); display: flex; flex-direction: column; align-items: center; gap: .8mm; }
+.savis div:first-child { border-left: 0; }
+.savis .o { width: 6mm; height: 6mm; border-radius: 50%; border: .9pt solid var(--ink); }
+.savis .g .o { border-color: var(--gold); background: var(--gold-soft); }
+.savis b { font-family: var(--serif); font-weight: 500; font-size: 10pt; }
+.savis small { font-family: var(--mono); font-size: 6.8pt; color: var(--muted); }
+.legal { display: flex; justify-content: space-between; font-size: 7pt; color: var(--faint); border-top: .5pt solid var(--line); padding-top: 1.6mm; }
+.legal b { color: var(--ink); font-weight: 600; }
+
+/* ---------- Solucionari ---------- */
+.sol h2 { font-family: var(--serif); font-weight: 400; font-size: 20pt; margin: 1mm 0 0; }
+.sol .lead { font-size: 9.2pt; color: var(--muted); line-height: 1.45; max-width: 165mm; }
+.sol table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+.sol th { text-align: left; font-family: var(--mono); font-size: 7pt; letter-spacing: 1.2pt; text-transform: uppercase; color: var(--muted); font-weight: 500; padding: 0 2mm 1.6mm; border-bottom: 1pt solid var(--ink); }
+.sol td { padding: 3mm 1.4mm; border-bottom: .6pt solid var(--line); vertical-align: middle; }
+.sol td.t { font-family: var(--serif); font-size: 20pt; font-weight: 500; width: 18mm; }
+.sol td.d { font-family: var(--mono); font-size: 8.2pt; white-space: nowrap; }
+.sol td.s { font-family: var(--serif); font-size: 11pt; white-space: nowrap; }
+.sol td.w { font-family: var(--mono); text-align: center; width: 17mm; }
+.sol sup { font-size: .62em; }
+.ideas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; }
+.idea { border: .8pt solid var(--line); border-radius: 3mm; padding: 3mm 3.5mm; font-size: 8.6pt; line-height: 1.42; }
+.idea b { display: block; font-family: var(--serif); font-weight: 500; font-size: 11pt; margin-bottom: 1mm; }
+.idea .kicker { display: block; margin-bottom: 1mm; }
+.sol .spacer { flex: 1; }
+
+@media print {
+  body { background: none; }
+  .bar { display: none; }
+  .sheet { margin: 0; box-shadow: none; break-after: page; }
+  .sheet:last-child { break-after: auto; }
+  .no-sol .sol { display: none; }
+  .no-sol .sheet { break-after: auto; }
+}
+@media screen and (max-width: 820px) { .sheet { zoom: .45; } }
+</style>
+</head>
+<body>
+<div class="bar">
+  <span class="wm"><em>combina</em><b>≈</b></span>
+  <button type="button" id="prev" aria-label="Repte anterior">←</button>
+  <select id="day" aria-label="Repte"></select>
+  <button type="button" id="next" aria-label="Repte següent">→</button>
+  <label><input type="checkbox" id="withSol" checked> Solucionari per al docent</label>
+  <button type="button" class="primary" id="print">Imprimeix o desa en PDF</button>
+</div>
+<main id="out"></main>
+
+<script src="js/config.js"></script>
+<script src="js/puzzle.js"></script>
+<script>
+(function () {
+  var C = window.COMBINA_CONFIG, P = window.Puzzle;
+  var SAVIS = [['Pitàgores', '0–100'], ['Hipàtia', '101–200'], ['Arquimedes', '201–300'], ['Noether', '301–400'], ['Gauss', '401–500']];
+  var today = P.dayKey(new Date());
+
+  // Només reptes ja passats: el del dia es juga a la pantalla.
+  var keys = [];
+  for (var k = P.addDays(today, -1); k >= C.startDate; k = P.addDays(k, -1)) keys.push(k);
+  var q = new URLSearchParams(location.search).get('d');
+  var cur = keys.indexOf(q) >= 0 ? q : keys[0];
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  // 3 * 4 → 3 × 4 · 12 / 3 → 12 ÷ 3 · 2^3 → 2³
+  function pretty(s) {
+    return esc(s).replace(/\*/g, '×').replace(/\//g, '÷').replace(/ - /g, ' − ').replace(/\^(\d+)/g, '<sup>$1</sup>');
+  }
+
+  function level(L, i) {
+    var adv = i >= C.advancedFrom;
+    return '<section class="lvl"><div class="goal"><span class="kicker">Nivell ' + (i + 1) + '</span>' +
+      '<span class="t">' + L.target + '</span><span class="n">' + L.nums.length + ' xifres</span></div>' +
+      '<div class="work"><div class="tiles">' + L.nums.map(function (n) { return '<span class="tile">' + n + '</span>'; }).join('') +
+      '<span class="note">' + (adv ? 'També val <span class="op">x<sup>y</sup></span> i <span class="op">√</span>' : 'Ratlla cada xifra<br>quan la facis servir') + '</span></div>' +
+      '<div class="grid"><span class="lbl">La meva operació</span></div>' +
+      '<div class="res"><span><span class="eq">=</span><i></i></span><span>distància<i></i></span><span>punts<i></i></span><span class="star">totes</span></div>' +
+      '</div></section>';
+  }
+
+  function sheet1(pz) {
+    var ruler = '<div class="h">distància</div>' + [0,1,2,3,4,5,6,7,8,9,'≥10'].map(function (d, j) { return '<div' + (j === 0 ? ' class="ex"' : '') + '>' + d + '</div>'; }).join('') +
+      '<div class="h">punts</div>' + [100,90,80,70,60,50,40,30,20,10,0].map(function (p, j) { return '<div' + (j === 0 ? ' class="ex"' : '') + '>' + p + '</div>'; }).join('');
+    return '<article class="sheet">' +
+      '<header class="head"><div><span class="wordmark"><em>combina</em><b>≈</b></span>' +
+      '<p class="kicker sub">Fitxa d’aula · el repte diari de càlcul</p></div>' +
+      '<div class="right"><p class="kicker gold">Repte nº ' + pz.number + '</p><p class="num">' + esc(P.prettyDay(pz.key)) + '</p></div></header>' +
+      '<div class="who"><span>Nom<i></i></span><span>Curs<i></i></span><span>Data<i></i></span></div>' +
+      '<div class="rules"><ol>' +
+      '<li>Combina les xifres per acostar-te tant com puguis a l’<b>objectiu</b>.</li>' +
+      '<li>Pots fer servir <span class="op">+ − × ÷</span> i parèntesis. Cada xifra, <b>com a màxim una vegada</b>; no cal fer-les servir totes.</li>' +
+      '<li>Si les fas servir <b>totes</b> i hi arribes, guanyes una <b>★</b>.</li></ol>' +
+      '<div><p class="kicker">Com es puntua</p><div class="ruler">' + ruler + '</div></div></div>' +
+      '<div class="levels">' + pz.levels.map(level).join('') + '</div>' +
+      '<div class="foot"><div class="total"><span class="kicker">Total</span><span class="v"><i></i>/ ' + C.dailyTotal + '</span></div>' +
+      '<div class="savis">' + SAVIS.map(function (s, j) { return '<div' + (j === 4 ? ' class="g"' : '') + '><span class="o"></span><b>' + s[0] + '</b><small>' + s[1] + '</small></div>'; }).join('') + '</div></div>' +
+      '<p class="legal"><span>Encercla el savi que t’acompanya avui segons el teu total.</span><span>Repte nou cada dia a les 9 h a <b>combina.cat</b></span></p>' +
+      '</article>';
+  }
+
+  function sheet2(pz) {
+    var rows = pz.levels.map(function (L, i) {
+      var w = P.countWays(L.nums, L.target);
+      return '<tr><td class="kicker">N' + (i + 1) + '</td><td class="t">' + L.target + '</td><td class="d">' + L.nums.join(' · ') + '</td>' +
+        '<td class="s">' + pretty(L.solution) + ' = ' + L.target + '</td><td class="w">' + w + '</td></tr>';
+    }).join('');
+    return '<article class="sheet sol">' +
+      '<header class="head"><div><span class="wordmark"><em>combina</em><b>≈</b></span>' +
+      '<p class="kicker sub">Solucionari per al docent · no el repartiu</p></div>' +
+      '<div class="right"><p class="kicker gold">Repte nº ' + pz.number + '</p><p class="num">' + esc(P.prettyDay(pz.key)) + '</p></div></header>' +
+      '<h2>Una solució exacta per nivell</h2>' +
+      '<p class="lead">N’hi ha més d’una: la columna «maneres» diu quantes combinacions diferents de xifres arriben exactament a l’objectiu. Com menys maneres, més difícil. Accepteu qualsevol operació ben escrita que respecti les normes.</p>' +
+      '<table><thead><tr><th></th><th>Objectiu</th><th>Xifres</th><th>Una solució</th><th style="text-align:center">Maneres</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+      '<p class="kicker" style="margin-top:3mm">Idees per a l’aula</p>' +
+      '<div class="ideas">' +
+      '<div class="idea"><span class="kicker">10 min</span><b>Escalfament</b>Escriviu a la pissarra només el nivell 1. Qui primer hi arribi, surt a explicar com ho ha fet.</div>' +
+      '<div class="idea"><span class="kicker">25 min</span><b>Per parelles</b>Cada parella fa la fitxa sense calculadora. Després intercanvien i es corregeixen amb la taula de punts.</div>' +
+      '<div class="idea"><span class="kicker">Debat</span><b>Qui s’ha acostat més?</b>Quan ningú no arriba a l’exacte, compareu les aproximacions: quina operació hi ha deixat més a prop i per què?</div>' +
+      '</div><div class="spacer"></div>' +
+      '<p class="legal"><span>© combina ≈</span><span><b>combina.cat</b> · hola@combina.cat</span></p>' +
+      '</article>';
+  }
+
+  var sel = document.getElementById('day'), out = document.getElementById('out'), withSol = document.getElementById('withSol');
+  sel.innerHTML = keys.map(function (k) { return '<option value="' + k + '">Repte nº ' + P.challengeNumber(k) + ' · ' + esc(P.prettyDay(k)) + '</option>'; }).join('');
+
+  function render() {
+    if (!cur) { out.innerHTML = '<p style="color:#ECE8DF;text-align:center;padding:40px">Encara no hi ha reptes anteriors: torna demà!</p>'; return; }
+    var pz = P.generateDay(cur);
+    out.innerHTML = sheet1(pz) + sheet2(pz);
+    sel.value = cur;
+    var i = keys.indexOf(cur);
+    document.getElementById('prev').disabled = i >= keys.length - 1;
+    document.getElementById('next').disabled = i <= 0;
+    document.title = 'Fitxa d’aula · Repte nº ' + pz.number + ' · combina ≈';
+    history.replaceState(null, '', '?d=' + cur);
+  }
+  sel.onchange = function () { cur = sel.value; render(); };
+  document.getElementById('prev').onclick = function () { cur = keys[keys.indexOf(cur) + 1] || cur; render(); };
+  document.getElementById('next').onclick = function () { cur = keys[keys.indexOf(cur) - 1] || cur; render(); };
+  withSol.onchange = function () { document.body.classList.toggle('no-sol', !withSol.checked); };
+  document.getElementById('print').onclick = function () { window.print(); };
+  render();
+})();
+</script>
+</body>
+</html>

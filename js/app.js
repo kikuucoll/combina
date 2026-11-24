@@ -490,9 +490,9 @@
     if (state.screen === 'joc') afterJocRender();
     if (state.screen === 'tutorial') updateGame();
     fitScreen();
-    if (state.screen === 'ranquing') loadRanking();
+    if (state.screen === 'ranquing') { loadRanking(); loadStats(); }
     if (state.screen === 'correccio') animateLevelPoints();
-    if (state.screen === 'resultat') { animateResult(); loadDist(); }
+    if (state.screen === 'resultat') { animateResult(); loadDist(); loadStats(); }
     if (state.screen === 'resultat' || state.screen === 'desglos') prepareCard();
     tickCountdowns();
   }
@@ -1167,7 +1167,7 @@
     onLevelDone(i, st, L);
     const last = doneCount(d) === state.puzzle.levels.length;
     if (last) {
-      d.finished = true; onDayFinished(); submitDay(); track('repte-acabat', 'Repte acabat');
+      d.finished = true; onDayFinished(); submitDay(); countDay(); track('repte-acabat', 'Repte acabat');
       const b = Math.min(4, Math.floor((d.total || 0) / 100)) * 100;
       track('total_' + b + '-' + (b === 400 ? 500 : b + 99), 'Total del dia ' + b + '–' + (b === 400 ? 500 : b + 99));
     }
@@ -1521,7 +1521,7 @@
         <div>
           ${challengeResult(total)}
           ${cel}
-          ${distCard()}
+          ${statsSlot()}${distCard()}
           <section class="card bars" aria-label="Punts per nivell">${bars}
             <p class="muted small">${ex ? ex + (ex === 1 ? ' resultat exacte (en or)' : ' resultats exactes (en or)') : 'Cap resultat exacte avui'}${starsOf(d) ? ` · <b class="gold">${starsOf(d)} ★</b> amb totes les xifres` : ''}. Ratxa: <b class="chalk">${s} ${s === 1 ? 'dia' : 'dies'}</b>.</p>
           </section>
@@ -1576,7 +1576,7 @@
     else if (above) { mode = 'up'; msg = `Has superat el <b class="gold">${pct} %</b> dels jugadors d'avui.`; }
     else {
       const gap = Math.ceil(mu) - total;
-      if (gap <= 120) { mode = 'goal'; msg = `Amb <b class="chalk">${gap} punts més</b> arribaves a la mitjana d'avui (${Math.round(mu)}). Demà la pots superar!`; }
+      if (gap <= 120) { mode = 'goal'; msg = `Amb <b class="chalk">${gap} punts més</b> arribaves a la mitjana del rànquing (${Math.round(mu)}). Demà la pots superar!`; }
       else {
         mode = 'self';
         const best = Math.max.apply(null, Object.keys(store.days).filter(k => store.days[k].finished).map(k => store.days[k].total));
@@ -1636,10 +1636,40 @@
         ${axis}${goal}${me}
       </svg>`;
     return `<div id="dist-slot"><section class="card dist-card ${mode}" style="--rc:${RC};--rrgb:${rk.rgb}" aria-label="Com has quedat avui">
-      <div class="coll-head"><p class="kicker">La campana de Gauss d'avui</p><p class="muted small">${x.n} jugadors fins ara</p></div>
+      <div class="coll-head"><p class="kicker">La campana de Gauss d'avui</p><p class="muted small">${x.n} al rànquing</p></div>
       ${svg}
       <p class="dist-msg">${msg}</p>
     </section></div>`;
+  }
+
+  /* ================= Recompte de tots els jugadors d'avui (també convidats) ================= */
+  // Cada partida acabada suma 1 un sol cop (marca `counted` dins del dia, que també viatja al núvol).
+  // Recompte anònim (només n i suma). Mai per a qui ha dit que té menys de 14 anys: les seves dades no surten del dispositiu.
+  function countDay() {
+    const k = state.dayKey, d = store.days[k];
+    if (!online() || !d || !d.finished || d.counted || state.countBusy) return;
+    state.countBusy = true;
+    B.countPlayer(k, totalOf(d)).then(() => {
+      d.counted = true; save(); state.stats = null;
+      if (state.screen === 'resultat' || state.screen === 'ranquing') loadStats();
+    }).catch(e => console.warn('No s’ha pogut sumar al recompte', e)).then(() => { state.countBusy = false; });
+  }
+  function statsLine() {
+    const S = state.stats, x = S && S.key === state.dayKey && S.data;
+    if (!x || !(x.n > 0)) return '';
+    return `<p class="day-stats">Avui han jugat <b>${x.n}</b> ${x.n === 1 ? 'persona' : 'persones'} · mitjana <b>${Math.round(x.sum / x.n)}</b> punts</p>`;
+  }
+  function statsSlot() { return B.enabled && !state.practice ? `<div id="stats-slot">${statsLine()}</div>` : ''; }
+  function loadStats() {
+    if (!B.enabled || state.practice) return;
+    const k = state.dayKey, S = state.stats;
+    if (S && S.key === k && (S.loading || Date.now() - S.at < 60000)) return;
+    state.stats = { key: k, at: Date.now(), loading: true, data: S && S.key === k ? S.data : null };
+    B.dayStats(k).then(data => {
+      state.stats = { key: k, at: Date.now(), data };
+      const slot = document.getElementById('stats-slot');
+      if (slot) slot.innerHTML = statsLine();
+    }).catch(e => { state.stats = { key: k, at: Date.now(), data: null }; console.warn('Recompte no disponible', e); });
   }
 
   // Es demana en obrir el resultat (i es refresca si fa més de 2 minuts)
@@ -1979,6 +2009,7 @@
           <button type="button" class="btn btn-ghost btn-sm" data-action="challenge">${ICON.share}Comparteix el teu resultat!</button>
         </div>
         ${saveCard('Inicia sessió amb Google per aparèixer al rànquing i no perdre el teu progrés.')}
+        ${state.rankTab === 'day' ? statsSlot() : ''}
         <div id="rank-body"><p class="muted center pad">Carregant…</p></div>`;
     }
     return `<section class="screen ranquing">
@@ -2655,6 +2686,8 @@
   });
   if (B.enabled) {
     B.redirectResult().then(r => { if (r && r.user) track('google-ok_' + envTag(), 'Entrada amb Google'); }).catch(e => authFail('google', e));
+    // Partides acabades que encara no s'han sumat al recompte (sense connexió, o d'abans d'existir-ne)
+    setTimeout(countDay, 3000);
     // Si Firebase tarda, no deixem la pantalla en blanc
     setTimeout(() => { if (!state.screen) firstScreen(); }, 2500);
   }
