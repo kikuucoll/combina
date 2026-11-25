@@ -9,7 +9,7 @@ window.COMBINA_CONFIG = {
   timeZone: 'Europe/Madrid',
   resetHour: 9,
   // Segons per nivell (nivells 1 a 5)
-  levelSeconds: [40, 40, 60, 60, 65],
+  levelSeconds: [40, 50, 60, 60, 65],    // N2 a 50 s des del 25/11 (el 24/11 el 35 % s'hi quedava sense temps)
   // A partir d'aquest repte, nivells 1–3 més assequibles (objectius ≤12, 13–20, 21–35, 36–100, >100)
   curveFrom: '2026-11-21',
   // Xifres per nivell
@@ -31,6 +31,8 @@ window.COMBINA_CONFIG = {
   // Correu públic de contacte i de privadesa (redirecció de CDmon cap al correu personal).
   // El formulari «Contacte» obre l'aplicació de correu de qui escriu (sense serveis externs).
   contactEmail: 'hola@combina.cat',
+  // Comptes a les xarxes (icones discretes al peu i a «Contacte»; s'amaguen als menors de 14)
+  social: { instagram: 'https://www.instagram.com/combinacat/', x: 'https://x.com/combinacat' },
   // Protecció de dades: edat mínima per crear compte o sortir al rànquing (LOPDGDD art. 7: 14 anys;
   // si la llei la puja a 16, canvia-ho aquí) i versió de la política (si canvia, es torna a demanar).
   minAge: 14,

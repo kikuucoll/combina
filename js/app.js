@@ -421,6 +421,8 @@
   }
 
   const ICON = {
+    instagram: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>',
+    x: '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.8 3h3.1l-6.8 7.8L22 21h-6.2l-4.9-6.4L5.3 21H2.2l7.3-8.3L2 3h6.4l4.4 5.8L17.8 3zm-1.1 16.2h1.7L7.4 4.7H5.6l11.1 14.5z"/></svg>',
     close: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
     back: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>',
     flame: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3c1 4 5 5.5 5 10a5 5 0 0 1-10 0c0-2.5 1.5-3.5 2.5-5 .5 1.5 1.5 2 2.5 2 0-2.5-.5-4.5 0-7z"/></svg>',
@@ -1898,8 +1900,21 @@
   }
 
   /* ================= Pantalla: sobre mi i contacte ================= */
+  /* Xarxes de @combinacat: enllaços simples (res incrustat, cap galeta) i mai per a qui ha dit que té menys de 14 anys */
+  const SOCIAL = [['instagram', 'Instagram'], ['x', 'X']].filter(([k]) => C.social && C.social[k]);
+  function socialOn() { return SOCIAL.length > 0 && store.age !== 'minor'; }
+  function socialLink(k, name, label) {
+    return `<a href="${esc(C.social[k])}" target="_blank" rel="noopener" data-social="${k}" aria-label="${name} @combinacat (s’obre en una pestanya nova)">${ICON[k]}${label ? '<span>@combinacat</span>' : ''}</a>`;
+  }
+  function socialIcons() {
+    return socialOn() ? ` · <span class="social-icons">${SOCIAL.map(([k, n]) => socialLink(k, n, false)).join('')}</span>` : '';
+  }
+  function followCard() {
+    return socialOn() ? `<div class="follow"><p class="kicker">Segueix el repte cada dia</p>
+      <div class="follow-row">${SOCIAL.map(([k, n]) => socialLink(k, n, true)).join('')}</div></div>` : '';
+  }
   function aboutLink() {
-    return `<p class="about-links"><button type="button" class="btn-text about-link" data-go="sobre">Contacte · Envia'm una idea</button> · ${privacyLink()}</p>`;
+    return `<p class="about-links"><button type="button" class="btn-text about-link" data-go="sobre">Contacte · Envia'm una idea</button> · ${privacyLink()}${socialIcons()}</p>`;
   }
 
   function screenSobre() {
@@ -1925,6 +1940,7 @@
           <p class="muted small" id="contact-status" role="status"></p>
         </form>` : '<p class="muted small">El formulari de contacte encara no està configurat.</p>'}
       </section>
+      ${followCard()}
       <button type="button" class="btn-text" data-go="avui">Torna al repte d'avui</button>
     </section>`;
   }
