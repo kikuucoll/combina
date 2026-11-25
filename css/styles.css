@@ -1228,6 +1228,7 @@ body.cd-on .shell, body.cd-on .toast, body.cd-on .banner, body.cd-on .modal { vi
 .calc-opt small { font-size: 12px; line-height: 1.35; }
 .calc-opt.on { border-color: var(--gold); background: rgba(var(--gold-rgb), .08); box-shadow: 0 0 18px -6px rgba(var(--gold-rgb), .5); }
 .expr-card.no-calc .pts-bar { visibility: hidden; }
+.expr-card.no-dist .pts-bar { visibility: hidden; }
 .expr-card.no-calc #live-val { color: var(--faint); }
 .share-msg { margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line); font-family: var(--mono); font-size: 12.5px; line-height: 1.5; color: var(--chalk); white-space: pre-wrap; word-break: break-all; }
 .card-prev, .share-msg { flex: none; }

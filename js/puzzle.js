@@ -329,27 +329,217 @@
     return backup;
   }
 
-  // opts.legacy5: el N5 d'abans (per a qui ja l'havia començat el dia del canvi)
+  /* ---------- Versió 3 (des de COMBINA_CONFIG.v3From) ----------
+   * N4: 6 xifres (1–20), objectiu 101–150 i només 12–20 combinacions de xifres que hi arriben
+   *     (abans 7 xifres i ~50).
+   * N5: 5 xifres (1–20), objectiu 151–400. Cada dia obliga a fer servir una estructura:
+   *     una potència, una arrel o un parèntesi amb dues operacions a dins, com (3 × 7 − 4) × 5.
+   *     «Obliga» vol dir que el comptador demostra que sense aquesta estructura no hi ha cap
+   *     manera d'arribar a l'objectiu. A més, hi ha 2–6 maneres d'encertar-lo. */
+  var V3 = {
+    n4: { count: 6, maxNum: 20, lo: 101, hi: 150, minWays: 12, maxWays: 20, attempts: 3000 },
+    n5: { count: 5, maxNum: 20, lo: 151, hi: 400, minWays: 2, maxWays: 6, attempts: 40000 }
+  };
+  var NEEDS = ['pow', 'root', 'paren'];
+  var ALL_OPS = { pow: true, root: true, big: true };
+  var WITHOUT = {
+    pow: { pow: false, root: true, big: true },      // sense potències
+    root: { pow: true, root: false, big: true },     // sense arrels
+    paren: { pow: true, root: true, big: false }     // sense parèntesis amb 2+ operacions dins × ÷ xʸ √
+  };
+
+  // Atzar de la versió 3: sfc32 amb quatre llavors (mulberry32 amb llavors properes pot repetir
+  // la mateixa seqüència desplaçada, i dos dies seguits sortien amb les mateixes xifres)
+  function rng3(key) {
+    var a = hashStr(key + '|a'), b = hashStr(key + '|b'), c = hashStr(key + '|c'), d = hashStr(key + '|d');
+    function next() {
+      a >>>= 0; b >>>= 0; c >>>= 0; d >>>= 0;
+      var t = (a + b) | 0; a = b ^ (b >>> 9); b = (c + (c << 3)) | 0; c = (c << 21) | (c >>> 11);
+      d = (d + 1) | 0; t = (t + d) | 0; c = (c + t) | 0;
+      return (t >>> 0) / 4294967296;
+    }
+    for (var i = 0; i < 12; i++) next();
+    return next;
+  }
+
+  function useV3(k) {
+    var from = cfg().v3From;
+    return !!from && (!/^\d{4}-\d{2}-\d{2}$/.test(k) || k >= from);
+  }
+
+  /* Comptador amb tipus d'expressió, fidel a les regles del teclat:
+   *   A = l'última operació és + o − (si va dins × ÷ xʸ √ necessita parèntesi)
+   *   M = xifra, producte, quocient, potència o arrel
+   * L'exponent és sempre una sola xifra (de 2 a 4). o.big = false prohibeix els parèntesis amb
+   * 2 o més operacions (un grup + − de 3 o més xifres) com a operand de × ÷ xʸ √. */
+  function countWays3(nums, target, o, stop) {
+    var n = nums.length, N = 1 << n, RA = new Array(N), RM = new Array(N);
+    var sA = new Int32Array(WAYS_CAP + 1), sM = new Int32Array(WAYS_CAP + 1);
+    var st = 0, ways = 0, masks = [], m, A, M;
+    function bits(x) { var c = 0; while (x) { c += x & 1; x >>= 1; } return c; }
+    function addA(v) { if (v > 0 && v <= WAYS_CAP && sA[v] !== st) { sA[v] = st; A.push(v); } }
+    function addM(v) { if (v > 0 && v <= WAYS_CAP && sM[v] !== st) { sM[v] = st; M.push(v); } }
+    for (m = 1; m < N; m++) masks.push(m);
+    masks.sort(function (a, b) { return bits(a) - bits(b) || a - b; });
+    for (var q = 0; q < masks.length; q++) {
+      m = masks[q]; st++; A = []; M = [];
+      if ((m & (m - 1)) === 0) addM(nums[31 - Math.clz32(m)]);
+      else {
+        var low = m & -m;
+        for (var a = (m - 1) & m; a > 0; a = (a - 1) & m) {
+          var b = m ^ a, ca = bits(a), cb = bits(b), i, j, x, y;
+          var XA = (o.big || ca <= 2) ? RM[a].concat(RA[a]) : RM[a];
+          var XB = (o.big || cb <= 2) ? RM[b].concat(RA[b]) : RM[b];
+          if (a & low) {                            // + − × ÷: cada partició un sol cop
+            var FA = RM[a].concat(RA[a]), FB = RM[b].concat(RA[b]);
+            for (i = 0; i < FA.length; i++) for (j = 0; j < FB.length; j++) {
+              x = FA[i]; y = FB[j]; addA(x + y); if (x !== y) addA(x > y ? x - y : y - x);
+            }
+            for (i = 0; i < XA.length; i++) for (j = 0; j < XB.length; j++) {
+              x = XA[i]; y = XB[j]; addM(x * y);
+              if (x % y === 0) addM(x / y);
+              if (y % x === 0) addM(y / x);
+            }
+          }
+          if (o.pow && cb === 1) {                  // potència: base = a, exponent = la xifra b
+            var e = nums[31 - Math.clz32(b)];
+            if (e >= 2 && e <= 4) for (i = 0; i < XA.length; i++) if (XA[i] > 1) addM(Math.pow(XA[i], e));
+          }
+        }
+      }
+      if (o.root) {
+        var src = (o.big || bits(m) <= 2) ? M.concat(A) : M.slice();
+        for (var r = 0; r < src.length; r++) {
+          var s = Math.round(Math.sqrt(src[r]));
+          if (s > 1 && s * s === src[r]) addM(s);
+        }
+      }
+      RA[m] = A; RM[m] = M;
+      if ((sA[target] === st || sM[target] === st) && ++ways > stop) return ways;
+    }
+    return ways;
+  }
+
+  /* Expressió aleatòria amb totes les xifres; `need` posa a la solució una potència,
+   * una arrel o un parèntesi amb dues operacions. Text en el format de solutionHTML. */
+  function buildV3(rng, count, maxNum, need) {
+    var nums = shuffle(rng, Array.from({ length: maxNum }, function (_, i) { return i + 1; })).slice(0, count);
+    var pool = nums.map(function (v) { return { v: v, s: String(v), add: false, atom: true }; });
+    function take(f) {
+      var idx = shuffle(rng, pool.map(function (_, i) { return i; })).filter(function (i) { return f(pool[i]); });
+      if (!idx.length) return null;
+      var x = pool[idx[0]]; pool = pool.filter(function (p) { return p !== x; }); return x;
+    }
+    function par(s) { return '(' + s + ')'; }
+    function comb(a, b, op) {
+      var v, s, t;
+      if (op === '+') { v = a.v + b.v; s = a.s + ' + ' + b.s; }
+      else if (op === '-') { if (a.v < b.v) { t = a; a = b; b = t; } if (a.v === b.v) return null; v = a.v - b.v; s = a.s + ' - ' + (b.add ? par(b.s) : b.s); }
+      else if (op === '*') { if (a.v < 2 || b.v < 2) return null; v = a.v * b.v; s = (a.add ? par(a.s) : a.s) + ' * ' + (b.add ? par(b.s) : b.s); }
+      else {
+        if (b.v < 2 || a.v % b.v) { t = a; a = b; b = t; if (b.v < 2 || a.v % b.v) return null; }
+        v = a.v / b.v; s = (a.add ? par(a.s) : a.s) + ' / ' + (b.atom ? b.s : par(b.s));
+      }
+      if (v > 5000) return null;
+      return { v: v, s: s, add: op === '+' || op === '-', atom: false };
+    }
+    if (need === 'pow') {
+      var e = take(function (p) { return p.v >= 2 && p.v <= 3; }); if (!e) return null;
+      var base = take(function (p) { return p.v >= 3 && p.v <= 15; }); if (!base) return null;
+      var pv = Math.pow(base.v, e.v); if (pv > 5000) return null;
+      pool.push({ v: pv, s: base.s + '^' + e.s, add: false, atom: true });
+    } else if (need === 'root') {
+      var r1 = take(function () { return true; }), r2 = take(function () { return true; });
+      var rc = r1 && r2 && comb(r1, r2, rng() < 0.5 ? '+' : '-'); if (!rc) return null;
+      var rt = Math.round(Math.sqrt(rc.v)); if (rt < 2 || rt * rt !== rc.v) return null;
+      pool.push({ v: rt, s: '√(' + rc.s + ')', add: false, atom: true });
+    } else if (need === 'paren') {
+      var g1 = take(function () { return true; }), g2 = take(function () { return true; }), g3 = take(function () { return true; });
+      var gab = g1 && g2 && comb(g1, g2, '+-*'.charAt(Math.floor(rng() * 3))); if (!gab) return null;
+      var grp = comb(gab, g3, rng() < 0.5 ? '+' : '-'); if (!grp) return null;
+      var gd = take(function (p) { return p.v >= 2; }); if (!gd) return null;
+      var gx = comb(grp, gd, rng() < 0.75 ? '*' : '/'); if (!gx) return null;
+      pool.push(gx);
+    }
+    while (pool.length > 1) {
+      shuffle(rng, pool);
+      var x = pool.pop(), y = pool.pop(), z = comb(x, y, '+-*/'.charAt(Math.floor(rng() * 4)));
+      if (!z) return null;
+      pool.push(z);
+    }
+    return { count: count, nums: nums, target: pool[0].v, solution: pool[0].s };
+  }
+
+  function genV3N4(k) {
+    var S = V3.n4, rng = rng3('combina|' + k + '|3|v3'), backup = null, gap = Infinity, mid = (S.minWays + S.maxWays) / 2;
+    for (var t = 0; t < S.attempts; t++) {
+      var c = buildV3(rng, S.count, S.maxNum, null);
+      if (!c || c.target < S.lo || c.target > S.hi || c.nums.indexOf(c.target) >= 0) continue;
+      var w = countWays3(c.nums, c.target, ALL_OPS, 60);
+      if (w >= S.minWays && w <= S.maxWays) { c.ways = w; return c; }
+      if (Math.abs(w - mid) < gap) { backup = c; backup.ways = w; gap = Math.abs(w - mid); }
+    }
+    return backup;
+  }
+
+  // Estructura obligada del N5 d'un dia (determinista, a l'atzar entre les tres)
+  function needFor(k) { return NEEDS[Math.floor(rng3('combina|' + k + '|need')() * NEEDS.length)]; }
+
+  function genV3N5(k) {
+    var S = V3.n5, first = NEEDS.indexOf(needFor(k)), backup = null;
+    for (var d = 0; d < NEEDS.length; d++) {               // si un tipus no surt (molt rar), el següent
+      var need = NEEDS[(first + d) % NEEDS.length], rng = rng3('combina|' + k + '|4|v3|' + need);
+      for (var t = 0; t < S.attempts; t++) {
+        var c = buildV3(rng, S.count, S.maxNum, need);
+        if (!c || c.target < S.lo || c.target > S.hi || c.nums.indexOf(c.target) >= 0) continue;
+        if (countWays3(c.nums, c.target, WITHOUT[need], 0) !== 0) continue;   // es pot fer sense: no serveix
+        var w = countWays3(c.nums, c.target, ALL_OPS, S.maxWays);
+        c.need = need; c.ways = w;
+        if (w >= S.minWays && w <= S.maxWays) return c;
+        if (!backup && w >= 1 && w <= S.maxWays) backup = c;                // reserva: obligat, amb 1 manera
+      }
+      if (backup) return backup;
+    }
+    return null;
+  }
+
+  /* Taula de reptes preparats (js/reptes.js, generada a l'ordinador): N4 i N5 de cada dia.
+   * Cerca massa pesada per fer-la al mòbil: N4 = 5 xifres, mínim 4 xifres per encertar i 3+ maneres;
+   * N5 = 5 xifres amb estructura obligada; i en tots dos, cap resultat (ni amb decimals) a menys de 2
+   * de l'objectiu, però algun enter a 2–5. Si un dia no hi és, es fan servir genV3N4/genV3N5. */
+  function fromTable(k, lvl) {
+    var T = global.COMBINA_REPTES, e = T && T[k] && T[k][lvl];
+    if (!e) return null;
+    return { count: e.nums.length, nums: e.nums.slice(), target: e.target, solution: e.solution, ways: e.ways, need: e.need };
+  }
+
+  // Versió del repte d'un dia: 1 (fins al 23/11), 2 (N5 «de debò», des de hardFrom), 3 (des de v3From)
+  function versionFor(k) { return useV3(k) ? 3 : useHard(k) ? 2 : 1; }
+
+  // opts.ver: versió anterior, per a qui ja havia començat el N4/N5 del dia del canvi amb l'app antiga
+  // (opts.legacy5 = versió 1, per compatibilitat)
   var cache = {};
   function generateDay(k, opts) {
-    var legacy = !!(opts && opts.legacy5), ck = k + (legacy ? '|v1' : '');
+    var want = opts && opts.ver ? opts.ver : opts && opts.legacy5 ? 1 : 3;
+    var ver = Math.min(versionFor(k), want), ck = k + '|v' + ver;
     if (cache[ck]) return cache[ck];
     var c = cfg(), total = c.dailyTotal || 500;
     var n = /^\d{4}-\d{2}-\d{2}$/.test(k) ? challengeNumber(k) : 0;
     var levels = c.levelCounts.map(function (count, i) {
-      var cand = (i === 4 && !legacy && useHard(k) && genHard(k)) || genCandidates(rngFor('combina|' + k + '|' + i), count, i, n, 1, k)[0];
+      var cand = (i === 3 && ver >= 3 && (fromTable(k, 'n4') || genV3N4(k))) || (i === 4 && ver >= 3 && (fromTable(k, 'n5') || genV3N5(k))) ||
+        (i === 4 && ver === 2 && genHard(k)) || genCandidates(rngFor('combina|' + k + '|' + i), count, i, n, 1, k)[0];
       if (cand) return cand;
       // Reserva (pràcticament impossible): la suma de totes les xifres
       var nums = shuffle(rngFor('combina|' + k + '|' + i + '|r'), Array.from({ length: 20 }, function (_, j) { return j + 1; })).slice(0, count);
       return { count: count, nums: nums, target: nums.reduce(function (a, b) { return a + b; }, 0), solution: nums.join(' + ') };
     });
-    cache[ck] = { key: k, number: n, total: total, levels: levels };
+    cache[ck] = { key: k, number: n, total: total, levels: levels, ver: ver };
     return cache[ck];
   }
 
   global.Puzzle = {
     dayKey: dayKey, addDays: addDays, challengeNumber: challengeNumber,
     msToReset: msToReset, prettyDay: prettyDay, shortDay: shortDay,
-    generateDay: generateDay, countWays: countWays
+    generateDay: generateDay, countWays: countWays, countWays3: countWays3, versionFor: versionFor
   };
 })(typeof window !== 'undefined' ? window : globalThis);

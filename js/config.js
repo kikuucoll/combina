@@ -18,6 +18,10 @@ window.COMBINA_CONFIG = {
   // la solució prevista combina + − × ÷ i només 6–12 combinacions de xifres hi arriben exactes.
   // Qui ja havia començat el N5 d'aquell dia amb la versió anterior el conserva (vegeu puzzleFor a app.js).
   hardFrom: '2026-11-24',
+  // A partir d'aquest repte (versió 3): N4 amb 6 xifres i menys maneres d'encertar (12–20);
+  // N5 amb 5 xifres que cada dia obliga a fer una potència, una arrel o un parèntesi amb dues
+  // operacions; i als nivells 4 i 5 la calculadora ja no diu a quina distància estàs.
+  v3From: '2026-11-26',
   // Puntuació màxima del dia (5 rondes × 100 punts)
   dailyTotal: 500,
   levelMax: 100,

@@ -239,9 +239,15 @@
     celebrations: []
   };
   // El N5 va canviar el dia hardFrom: qui ja l'havia començat abans (nivell sense «v2») conserva el d'abans
+  // (versió d'un nivell: v = 3 des de la versió 3; v2 = true la 2; cap marca = la 1)
   function puzzleFor(k) {
-    const d = store.days[k], lv = d && d.levels && d.levels[4];
-    return P.generateDay(k, { legacy5: !!(lv && lv.startAt && !lv.v2) });
+    const d = store.days[k];
+    let ver = 3;
+    [3, 4].forEach(i => {
+      const lv = d && d.levels && d.levels[i];
+      if (lv && lv.startAt) ver = Math.min(ver, lv.v || (lv.v2 ? 2 : 1));
+    });
+    return P.generateDay(k, { ver });
   }
   state.puzzle = puzzleFor(state.dayKey);
 
@@ -548,6 +554,11 @@
 
   // Mode aula «sense calculadora»: no es veu el resultat ni els punts fins que valides
   function noCalc() { return untimed() && store.calc === false && state.screen === 'joc'; }
+  // Repte diari (versió 3), nivells 4 i 5: es veu el resultat, però no a quina distància estàs ni els punts
+  function noDist() {
+    const pz = state.puzzle;
+    return state.screen === 'joc' && !untimed() && state.level >= 3 && !!pz && pz.ver >= 3;
+  }
 
   /* Context actiu: el tutorial o el nivell en joc */
   function ctx() {
@@ -785,7 +796,9 @@
     return `<details class="card rules-box">
       <summary>Normes i puntuació</summary>
       <ul class="tut-rules">
-        <li><b>Cada dia a les 9:00</b>, un repte nou amb <b>5 nivells</b> (de 4 a 7 xifres). L'últim és el <b>repte de debò</b>: hi ha poques maneres d'encertar-lo i sovint cal combinar <b>+ − × ÷</b>.</li>
+        <li><b>Cada dia a les 9:00</b>, un repte nou amb <b>5 nivells</b>${state.puzzle && state.puzzle.ver >= 3
+          ? ` (de 4 a 6 xifres). Als nivells 4 i 5 la calculadora et diu el resultat, però <b>no a quina distància estàs</b>: ho descobreixes en validar. L'últim és el <b>repte de debò</b>.`
+          : ` (de 4 a 7 xifres). L'últim és el <b>repte de debò</b>: hi ha poques maneres d'encertar-lo i sovint cal combinar <b>+ − × ÷</b>.`}</li>
         <li>Tens de <b>${Math.min(...levelTimes())} a ${Math.max(...levelTimes())} segons</b> per nivell. Si s'acaba el temps, es corregeix el que hi hagi.</li>
         <li>Pots fer servir <b>+ − × ÷</b> i <b>parèntesis</b>. Als nivells 4 i 5 també <b>potències</b> (l'exponent és una xifra) i <b>arrels</b>.</li>
         <li><b>Arribar a l'objectiu exacte val 100 punts</b> (500 al dia). Si a més fas servir <b>totes les xifres</b>, guanyes una <b class="gold">estrella ★</b>. Si no hi arribes, <b>cada unitat de distància resta un 10 %</b>: a 1, 90 punts; a 5, 50; a 10 o més, 0.</li>
@@ -973,7 +986,7 @@
         <div class="game-main">
           <div class="target"><p class="kicker">Objectiu</p><p class="target-num">${L.target}</p></div>
           ${b.expr}${b.tiles}
-          <p class="hint">Cada xifra, un sol cop. Exacte = 100 punts · amb totes les xifres, ★ de bonus.</p>
+          <p class="hint">${noDist() ? 'Cada xifra, un sol cop. Aquí la calculadora no et diu a quina distància estàs: valida i ho sabràs.' : 'Cada xifra, un sol cop. Exacte = 100 punts · amb totes les xifres, ★ de bonus.'}</p>
         </div>
         ${b.keypad}
       </div>
@@ -1030,13 +1043,20 @@
     const r = E.value(st.tokens);
     const lv = document.getElementById('live-val'), lp = document.getElementById('live-pts'), sb = document.getElementById('submit');
     const card = document.querySelector('.expr-card');
-    if (card) card.classList.toggle('no-calc', noCalc());
+    if (card) { card.classList.toggle('no-calc', noCalc()); card.classList.toggle('no-dist', !c.tut && noDist()); }
     if (noCalc()) {
       // Només es diu si l'expressió és vàlida; el valor és càlcul mental
       lv.textContent = r.empty ? ' ' : '= ?';
       lp.textContent = r.empty ? '' : r.ok ? (open > 0 ? `Calcula-ho de cap · falta${open > 1 ? 'n' : ''} ${open} )` : 'Calcula-ho de cap i valida') : r.err;
       lp.className = 'pill' + (r.empty ? ' hidden' : r.ok ? (open > 0 ? ' warn' : '') : ' err');
       sb.disabled = !!r.empty;
+      setBar(0, false);
+    } else if (r.ok && !c.tut && noDist()) {
+      // Només el resultat: a quina distància estàs i quants punts fas es descobreix en validar
+      lv.textContent = '= ' + E.fmt(r.v);
+      lp.textContent = open > 0 ? `falta${open > 1 ? 'n' : ''} ${open} )` : 'Valida per saber els punts';
+      lp.className = 'pill' + (open > 0 ? ' warn' : '');
+      sb.disabled = false;
       setBar(0, false);
     } else if (r.ok) {
       const d = E.distance(L.target, r.v), pts = E.points(L.target, r.v, E.tilesUsed(st.tokens), L.count);
@@ -1118,7 +1138,7 @@
     const d = day();
     if (!(d.levels[i] && d.levels[i].startAt)) {
       if (i === 0 && !state.practice) track('repte-comencat', 'Repte començat');
-      d.levels[i] = { tokens: [], startAt: Date.now(), done: false, v2: true };
+      d.levels[i] = { tokens: [], startAt: Date.now(), done: false, v2: true, v: 3 };
       save();
     }
     go('joc');
@@ -1128,7 +1148,7 @@
     const d = day(), i = state.level;
     if (d.levels[i] && d.levels[i].startAt) return;
     if (i === 0 && !state.practice) track('repte-comencat', 'Repte començat');
-    d.levels[i] = { tokens: [], startAt: Date.now(), done: false, v2: true };
+    d.levels[i] = { tokens: [], startAt: Date.now(), done: false, v2: true, v: 3 };
     save();
     render();
   }
