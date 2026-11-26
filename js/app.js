@@ -2163,10 +2163,10 @@
   /* ================= Pantalla: savis ================= */
   function screenSavis() {
     const d = day(), cur = d.finished ? SV.rankFor(totalOf(d)).key : null;
-    const cards = SV.list.map(s => `<article class="card sage${s.key === cur ? ' current' : ''}" style="--c:${s.color};--rgb:${s.rgb}">
+    const cards = SV.list.map(s => `<article class="card sage${s.key === cur ? ' current' : ''}"${s.key === cur ? ' aria-current="true"' : ''} style="--c:${s.color};--rgb:${s.rgb}">
       <div class="sage-art">${SV.medal(s.key, 150)}</div>
       <div class="sage-info">
-        <p class="kicker">Rang ${s.n} · ${s.min} – ${s.max} punts${s.key === cur ? ' · el teu d’avui' : ''}</p>
+        <p class="kicker sage-rank">Rang ${s.n}<span class="sage-sep"> · </span><span class="sage-range">${s.min} – ${s.max} punts</span>${s.key === cur ? '<span class="sr-only"> · el teu d’avui</span>' : ''}</p>
         <h2>${s.name}</h2>
         <p class="sage-meta">${s.era}</p>
         <p class="sage-fact">${s.fact}</p>
