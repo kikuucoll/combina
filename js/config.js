@@ -14,6 +14,8 @@ window.COMBINA_CONFIG = {
   curveFrom: '2026-11-21',
   // Xifres per nivell
   levelCounts: [4, 5, 6, 7, 8],
+  // A partir d'aquest repte, el N1 sempre es pot fer sumant 2 o 3 xifres (primer contacte amable)
+  easyN1From: '2026-11-27',
   // A partir d'aquest repte, el nivell 5 és més difícil: 6 xifres (1–20), objectiu 151–300,
   // la solució prevista combina + − × ÷ i només 6–12 combinacions de xifres hi arriben exactes.
   // Qui ja havia començat el N5 d'aquell dia amb la versió anterior el conserva (vegeu puzzleFor a app.js).

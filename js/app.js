@@ -32,7 +32,7 @@
   function save() {
     try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) { /* ignora */ }
     // Amb sessió iniciada, el progrés també es desa al núvol (agrupant canvis)
-    if (cloud.ready && B.user) { clearTimeout(cloud.timer); cloud.timer = setTimeout(pushCloud, 1500); }
+    if (cloud.ready && B.user) { clearTimeout(cloud.timer); cloud.timer = setTimeout(pushCloud, state.screen === 'joc' ? 15000 : 1500); }
   }
 
   /* ================= Protecció de dades: edat i consentiment =================
@@ -1125,6 +1125,7 @@
   // On marxa la gent: l'app passa a segon pla a mig tutorial o a mig nivell
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'hidden') return;
+    if (cloud.timer) { clearTimeout(cloud.timer); cloud.timer = null; pushCloud(); }
     if (state.screen === 'tutorial') return tutTrack('sortida', 'surt de l’app');
     if (state.screen === 'joc' && !state.practice) {
       const st = day().levels[state.level];
@@ -2073,6 +2074,27 @@
     return Object.keys(store.friends).filter(u => u !== me);
   }
 
+  /* Còpia local del rànquing: cada consulta costa fins a 200 lectures (1400 la setmanal) i el pla
+   * gratuït de Firestore en té 50.000 al dia. Sobreviu a recàrregues; caduca als pocs minuts. */
+  const RANK_KEY = 'combina.rank.v2';
+  const RANK_TTL = { day: 3 * 60000, week: 20 * 60000, total: 20 * 60000 };
+  function rankCache() { try { return JSON.parse(localStorage.getItem(RANK_KEY)) || {}; } catch (e) { return {}; } }
+  function rankCacheGet(id, tab) {
+    const c = rankCache()[id];
+    return c && Date.now() - c.at < RANK_TTL[tab] ? c.rows : null;
+  }
+  function rankCacheSet(id, rows) {
+    const all = rankCache(), now = Date.now();
+    Object.keys(all).forEach(k => { if (now - all[k].at > 30 * 60000) delete all[k]; });
+    all[id] = { at: now, rows };
+    try { localStorage.setItem(RANK_KEY, JSON.stringify(all)); } catch (e) { /* ple: no passa res */ }
+  }
+  function rankCacheDropDay() {
+    const all = rankCache();
+    Object.keys(all).forEach(k => { if (k.indexOf('day|') === 0 || k.indexOf('week|') === 0) delete all[k]; });
+    try { localStorage.setItem(RANK_KEY, JSON.stringify(all)); } catch (e) { /* ignora */ }
+  }
+
   function loadRanking() {
     if (!B.enabled) return;
     const tab = state.rankTab, scope = state.rankScope;
@@ -2088,30 +2110,38 @@
       }
       if (B.user) uids = uids.concat(B.user.uid);
     }
+    const id = tab + '|' + scope + '|' + state.dayKey + '|' + (scope === 'friends' ? uids.slice().sort().join(',') : '');
+    const cached = rankCacheGet(id, tab);
     let p;
-    if (tab === 'day') p = B.day(state.dayKey, uids);
-    else if (tab === 'week') p = B.week(Array.from({ length: 7 }, (_, i) => P.addDays(state.dayKey, -i)), uids);
-    else p = B.total(uids);
-    p.then(rows => {
+    if (cached) p = Promise.resolve(cached);
+    else if (tab === 'day') {
+      // Percentatges per savi amb recomptes al servidor (tots els jugadors, no només els 100 de la llista)
+      const counts = scope === 'all' ? B.rankCounts(state.dayKey, SV.list.map(s => [s.min, s.max])).catch(() => null) : Promise.resolve(null);
+      p = Promise.all([B.day(state.dayKey, uids), counts]).then(([rows, c]) => ({ rows, counts: c }));
+    }
+    else if (tab === 'week') p = B.week(Array.from({ length: 7 }, (_, i) => P.addDays(state.dayKey, -i)), uids).then(rows => ({ rows }));
+    else p = B.total(uids).then(rows => ({ rows }));
+    if (!cached) p = p.then(res => { rankCacheSet(id, res); return res; });
+    p.then(res => {
       if (state.screen !== 'ranquing' || state.rankTab !== tab || state.rankScope !== scope) return;
       const box = document.getElementById('rank-body');
-      if (box) box.innerHTML = rankHTML(rows, tab);
+      if (box) box.innerHTML = rankHTML(res.rows || [], tab, res.counts);
     }).catch(err => {
       const box = document.getElementById('rank-body');
       if (box) box.innerHTML = `<p class="muted center pad">No s'ha pogut carregar el rànquing (${esc(err.message)}).</p>`;
     });
   }
 
-  function rankHTML(rows, tab) {
+  function rankHTML(rows, tab, totals) {
     if (!rows.length) return state.rankScope === 'friends'
       ? '<p class="muted center pad">Els teus amics encara no hi tenen cap puntuació.</p>'
       : '<p class="muted center pad">Encara no hi ha cap puntuació. Sigues el primer!</p>';
     let dist = '';
     if (tab === 'day') {
-      const counts = SV.list.map(s => rows.filter(r => SV.rankFor(r.total).key === s.key).length);
-      const max = Math.max.apply(null, counts) || 1;
+      const counts = totals && totals.length === SV.list.length ? totals : SV.list.map(s => rows.filter(r => SV.rankFor(r.total).key === s.key).length);
+      const max = Math.max.apply(null, counts) || 1, all = counts.reduce((a, c) => a + c, 0) || 1;
       dist = '<div class="dist" aria-label="Distribució de rangs">' + SV.list.map((s, i) =>
-        `<div><small>${Math.round(counts[i] / rows.length * 100)}%</small><i style="height:${Math.max(4, counts[i] / max * 56)}px;background:${s.color}"></i><small>${s.name}</small></div>`).join('') + '</div>';
+        `<div><small>${Math.round(counts[i] / all * 100)}%</small><i style="height:${Math.max(4, counts[i] / max * 56)}px;background:${s.color}"></i><small>${s.name}</small></div>`).join('') + '</div>';
     }
     const me = B.user && B.user.uid;
     const list = rows.slice(0, 100).map((r, i) => {
@@ -2457,7 +2487,7 @@
       levels: state.puzzle.levels.map((_, i) => (d.levels[i] ? d.levels[i].points : 0)),
       // Expressions enviades, per poder-les revisar (i, en un futur, recalcular-les al servidor)
       exprs: state.puzzle.levels.map((_, i) => exprText(d.levels[i] && d.levels[i].tokens))
-    }).then(() => { d.submitted = true; save(); }).catch(e => console.warn('No s’ha pogut desar la puntuació', e));
+    }).then(() => { d.submitted = true; save(); rankCacheDropDay(); }).catch(e => console.warn('No s’ha pogut desar la puntuació', e));
   }
 
   function nextLevel() {

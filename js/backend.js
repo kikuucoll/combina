@@ -93,6 +93,18 @@
     }
   }
 
+  // Firestore Lite (per a les consultes de recompte), carregat només quan cal
+  function liteDb() {
+    var V = 'https://www.gstatic.com/firebasejs/10.12.2/';
+    if (!lite) {
+      lite = Promise.all([import(V + 'firebase-app.js'), import(V + 'firebase-firestore-lite.js')]).then(function (m) {
+        var app = m[0].initializeApp(cfg.firebase, 'stats');
+        return { F: m[1], db: m[1].getFirestore(app) };
+      });
+      lite.catch(function () { lite = null; });
+    }
+    return lite;
+  }
   function scoresOf(dayKey) { return db.collection('days').doc(dayKey).collection('scores'); }
   function withUid(d) { var x = d.data(); x.uid = d.id; return x; }
 
@@ -250,15 +262,7 @@
      * Torna { n, buckets: [11 recomptes: 0–49 … 450–499, 500], below, ties } */
     distribution: function (dayKey, mine) {
       if (!enabled || !cfg.firebase) return Promise.resolve(null);
-      var V = 'https://www.gstatic.com/firebasejs/10.12.2/';
-      if (!lite) {
-        lite = Promise.all([import(V + 'firebase-app.js'), import(V + 'firebase-firestore-lite.js')]).then(function (m) {
-          var app = m[0].initializeApp(cfg.firebase, 'stats');
-          return { F: m[1], db: m[1].getFirestore(app) };
-        });
-        lite.catch(function () { lite = null; });
-      }
-      return lite.then(function (L) {
+      return liteDb().then(function (L) {
         var F = L.F, col = F.collection(L.db, 'days', dayKey, 'scores');
         var count = function () {
           var q = F.query.apply(null, [col].concat(Array.prototype.slice.call(arguments)));
@@ -276,6 +280,18 @@
       });
     },
 
+    /* Jugadors del dia per rang de savi (5 recomptes = 5 lectures, sigui quin sigui el nombre de jugadors).
+     * ranges: [[min, max], …] */
+    rankCounts: function (dayKey, ranges) {
+      if (!enabled || !cfg.firebase) return Promise.resolve(null);
+      return liteDb().then(function (L) {
+        var F = L.F, col = F.collection(L.db, 'days', dayKey, 'scores');
+        return Promise.all(ranges.map(function (r) {
+          return F.getCount(F.query(col, F.where('total', '>=', r[0]), F.where('total', '<=', r[1]))).then(function (s) { return s.data().count; });
+        }));
+      });
+    },
+
     /* Rànquing d'un dia (tothom, o només una llista de jugadors) */
     day: function (dayKey, uids) {
       if (!enabled) return Promise.resolve([]);
@@ -283,7 +299,8 @@
         return Promise.all(uids.map(function (u) { return Backend.scoreOf(dayKey, u).catch(function () { return null; }); }))
           .then(function (l) { return l.filter(Boolean).sort(function (a, b) { return b.total - a.total; }); });
       }
-      return scoresOf(dayKey).orderBy('total', 'desc').limit(200).get()
+      // Només els 100 que es mostren (cada document és una lectura de la quota)
+      return scoresOf(dayKey).orderBy('total', 'desc').limit(100).get()
         .then(function (q) { return q.docs.map(withUid); });
     },
 
@@ -310,7 +327,7 @@
         return Promise.all(uids.map(function (u) { return Backend.player(u).catch(function () { return null; }); }))
           .then(function (l) { return l.filter(function (x) { return x && x.days; }).map(map).sort(function (a, b) { return b.total - a.total; }); });
       }
-      return db.collection('players').orderBy('sum', 'desc').limit(200).get()
+      return db.collection('players').orderBy('sum', 'desc').limit(100).get()
         .then(function (q) { return q.docs.map(function (d) { return map(withUid(d)); }); });
     }
   };

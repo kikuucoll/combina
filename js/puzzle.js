@@ -131,6 +131,19 @@
     return s;
   }
 
+  function easyN1(k) {
+    var from = cfg().easyN1From;
+    return !!from && (!/^\d{4}-\d{2}-\d{2}$/.test(k) || k >= from);
+  }
+  // Suma de 2 o 3 xifres que dona l'objectiu (la més curta), o null
+  function simpleSum(nums, target) {
+    var n = nums.length, i, j, l;
+    for (i = 0; i < n; i++) for (j = i + 1; j < n; j++) if (nums[i] + nums[j] === target) return nums[i] + ' + ' + nums[j];
+    for (i = 0; i < n; i++) for (j = i + 1; j < n; j++) for (l = j + 1; l < n; l++)
+      if (nums[i] + nums[j] + nums[l] === target) return nums[i] + ' + ' + nums[j] + ' + ' + nums[l];
+    return null;
+  }
+
   /* Genera molts reptes possibles per a un nivell (un per objectiu diferent) */
   function genCandidates(rng, count, li, n, want, k) {
     var S = specFor(li, n, k), lo = S.lo, hi = S.hi, found = {}, list = [];
@@ -198,9 +211,14 @@
       // Als nivells alts, sovint cal una operació «potent» (potència o arrel)
       if (S.strong && !(usedPow || usedRoot) && rng() < S.strong) continue;
 
+      // N1 sempre amable (des de easyN1From): l'objectiu ha de ser la suma de 2 o 3 xifres,
+      // i aquesta és la solució que es mostra. El 25/11 (7, 5, 4, 6 → 14) calia multiplicar i el 31 % s'hi va quedar sense temps.
+      var shown = pool[0].s;
+      if (li === 0 && easyN1(k)) { shown = simpleSum(nums, target); if (!shown) continue; }
+
       if (found[target]) continue;
       found[target] = true;
-      list.push({ count: count, nums: nums, target: target, solution: pool[0].s });
+      list.push({ count: count, nums: nums, target: target, solution: shown });
     }
     return list;
   }
