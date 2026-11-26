@@ -99,11 +99,7 @@
     else badge = '<text x="100" y="11.8" fill="' + c + '" font-family="STIX Two Text, serif" font-style="italic" font-size="11" text-anchor="middle">' + s.glyph + '</text>';
 
     return '<span class="medal" style="width:' + size + 'px;height:' + size + 'px">' +
-      (opts.dim ? '' :
-      '<svg class="medal-halo" viewBox="0 0 200 200" aria-hidden="true"><defs><radialGradient id="' + id + '">' +
-      '<stop offset="0%" stop-color="' + c + '" stop-opacity=".42"/><stop offset="45%" stop-color="' + c + '" stop-opacity=".14"/>' +
-      '<stop offset="100%" stop-color="' + c + '" stop-opacity="0"/></radialGradient></defs>' +
-      '<circle cx="100" cy="100" r="100" fill="url(#' + id + ')"><animate attributeName="opacity" values=".7;1;.7" dur="4s" repeatCount="indefinite"/></circle></svg>') +
+      // Sense halo al voltant: només el medalló
       '<svg class="medal-art" viewBox="0 0 200 200" role="img" aria-label="Medalla de ' + s.name + '" style="' + glow + '">' +
       '<circle cx="100" cy="100" r="78" fill="#0B0E12" fill-opacity=".55"/>' +
       '<g>' + rot(60) +

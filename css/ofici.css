@@ -1,0 +1,209 @@
+/* =====================================================================
+ * Capa d'ofici: tractament visual sobri (substitueix l'antiga capa de poliment)
+ *
+ * Mateixa marca: tinta, guix i or de Gauss; STIX Two + IBM Plex;
+ * mateixa disposició i mateix contingut. El que canvia és el tractament:
+ *   - fora halos, lluentors i ombres de color daurat
+ *   - fora text amb degradat: colors plens
+ *   - fora vidre esmerilat (backdrop-filter): superfícies opaques
+ *   - fora animacions que no expliquen res (respiració, girs, reflexos, levitació)
+ *   - l'or es reserva per a allò que importa: l'objectiu, l'exacte i l'acció
+ *   - el fons és un full de quadern, no un cel estrellat
+ * ===================================================================== */
+
+/* ---------- Fons: full quadriculat, sense llum ambiental ---------- */
+body {
+  background-image:
+    linear-gradient(rgba(236, 232, 223, .045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(236, 232, 223, .045) 1px, transparent 1px);
+  background-size: 20px 20px, 20px 20px;
+}
+.aura, .geo { display: none !important; }
+/* Les operacions que cauen són part de la marca: es queden, però més discretes
+ * i sempre per sota de superfícies opaques (ja no es veuen a través del teclat). */
+.rain span { color: rgba(236, 232, 223, .05); text-shadow: none; }
+
+/* ---------- Marca: colors plens ---------- */
+.wordmark em { color: var(--chalk); }
+.wordmark b { color: var(--gold); text-shadow: none; }
+.title em, .hero-title em, .intro-big em { color: var(--gold-t); }
+.kicker { letter-spacing: 1.5px; }
+.kicker.gold, .target .kicker { text-shadow: none; }
+
+/* ---------- Superfícies: un sol gruix, un sol to ---------- */
+:root { --surface: #12161C; }
+.card, .expr-card, .modal-card {
+  background: #12161C;
+  border: 1px solid var(--line);
+  box-shadow: none;
+}
+.card { border-radius: 14px; }
+.expr-card { border-radius: 14px; border-color: var(--line-2); }
+.modal-card { border-radius: 16px; }
+.sage.card { background: #12161C; border-color: rgba(var(--rgb), .35); }
+.sage.card.current { border-color: var(--c); box-shadow: none; }
+
+/* Xips, avatar, pestanyes i botons secundaris: opacs, sense vidre ni halo */
+.chip, .btn-ghost, .tabs, .icon-btn { background: #12161C !important; backdrop-filter: none; -webkit-backdrop-filter: none; }
+button.chip:hover, .btn-ghost:hover { border-color: #4A525E; box-shadow: none; }
+.avatar { box-shadow: none; }
+
+/* ---------- Botons ---------- */
+.btn { overflow: visible; transition: background .15s ease, border-color .15s ease, transform .1s ease; }
+.btn-primary { background: var(--chalk); color: var(--ink); box-shadow: 0 -2px 0 rgba(0, 0, 0, .18) inset; }
+.btn-primary:hover { background: #fff; box-shadow: 0 -2px 0 rgba(0, 0, 0, .18) inset; }
+.btn-primary::after, .key.submit::after { content: none; display: none; }
+.btn-meta { color: #6B6455; }
+.btn-gold { background: var(--gold); box-shadow: 0 -2px 0 rgba(0, 0, 0, .2) inset; }
+.btn-gold:hover { background: #EDC271; }
+.btn-arxiu:hover { box-shadow: none; }
+.btn-hero { box-shadow: none !important; }
+
+/* ---------- Compte enrere ---------- */
+.countdown, .countdown.big { text-shadow: none; }
+
+/* ---------- Navegació: una línia, sense resplendor ---------- */
+.nav { background: #0B0E12; backdrop-filter: none; border-top: 1px solid #1E242D; }
+.nav-item { position: relative; transition: color .15s; }
+.nav-item.on { color: var(--chalk); }
+.nav-item.on svg { filter: none; transform: none; color: var(--gold); }
+.nav-item.on::before {
+  content: ''; position: absolute; top: -1px; left: 50%; width: 24px; height: 2px; margin-left: -12px;
+  background: var(--gold); box-shadow: none;
+}
+.nav-dot { box-shadow: 0 0 0 2px var(--ink); animation: none; }
+
+/* ---------- Fitxes (xifres) i teclat: peces físiques, no joies ---------- */
+.mini-tile, .tile {
+  background: #181D25;
+  border: 1px solid #39424F;
+  box-shadow: 0 -2px 0 rgba(0, 0, 0, .35) inset;
+}
+.mini-tile { animation: none; }
+.tile { animation: none; transition: background .1s, border-color .1s, opacity .2s, transform .08s; }
+.tile:not(:disabled):hover { transform: none; border-color: #5A6370; box-shadow: 0 -2px 0 rgba(0, 0, 0, .35) inset; }
+.tile:not(:disabled):active { transform: translateY(1px); box-shadow: none; }
+.tile.used { background: transparent; box-shadow: none; }
+
+.key { background: #161B22; box-shadow: 0 -2px 0 rgba(0, 0, 0, .3) inset; transition: background .1s, border-color .1s, opacity .2s; }
+.key:not(.soft):not(.submit):not(:disabled) { color: var(--chalk); }
+.key:not(:disabled):hover { border-color: #4A525E; box-shadow: 0 -2px 0 rgba(0, 0, 0, .3) inset; }
+.key:not(:disabled):active { transform: translateY(1px); box-shadow: none; }
+.key.submit { background: var(--chalk); box-shadow: 0 -2px 0 rgba(0, 0, 0, .18) inset; }
+
+/* ---------- Objectiu: el número és l'heroi, sense decorat al darrere ---------- */
+.hero-target, .target-num { color: var(--chalk); background: none; -webkit-text-fill-color: currentColor; filter: none; }
+.hero-target b { color: var(--gold); -webkit-text-fill-color: var(--gold); text-shadow: none; }
+.target-num::before { content: none; display: none; }
+.target .kicker { color: var(--gold-t); }
+
+/* ---------- Avui: llista de nivells ---------- */
+.lvl-row.next { background: none; }
+.lvl-row.next::before { content: ''; position: absolute; left: -18px; top: 10px; bottom: 10px; width: 2px; background: var(--gold); box-shadow: none; }
+.lvl-row.next { margin: 0; padding-left: 0; padding-right: 0; border-bottom-color: #222832; position: relative; }
+.lvl-row.next .dots i { background: var(--gold); box-shadow: none; }
+.dots i { border-radius: 2px; }
+.wk i:not(.empty):not(.today):not(.frozen) { box-shadow: none; }
+
+/* ---------- Joc: progrés i temporitzador ---------- */
+.segs .exact, .segs .cur { box-shadow: none; }
+.segs .cur { animation: none; }
+.timer::before { content: none; }
+.timer svg .ring, .timer.low svg .ring { filter: none; }
+.timer.low { animation: none; }
+.timer.low span { animation: none; }
+
+/* ---------- Expressió ---------- */
+.expr-card:focus-within, .expr-card:has(.tk-n) { border-color: #4A525E; box-shadow: none; }
+.caret { box-shadow: none; }
+.pill { border: 0; }
+.pill.exact { background: var(--gold); box-shadow: none; animation: none; }
+.pill.warn { box-shadow: inset 0 0 0 1px rgba(var(--gold-rgb), .55); }
+
+/* ---------- Correcció i resultat ---------- */
+.pop.exact, .step-expr.final { text-shadow: none; }
+.ink::after, .nl-gap, .nl-mark.goal { box-shadow: none; }
+.nl-axis { background: #4A5361; }
+.rr-words { border-left: 2px solid var(--gold); border-image: none; }
+.res-medal { filter: none; animation: none; }
+.s3d-num, .score3d.done .s3d-num { text-shadow: none; filter: none; }
+.s3d-num { animation: fadeIn .5s ease both; }
+.s3d-floor { display: none; }
+.rl-fill { background-image: none !important; animation: none !important; box-shadow: none !important; }
+.rl-fill::after { content: none !important; }
+.ms-bar i, .pts-bar i, .pts-bar.exact i { background: var(--gold); box-shadow: none; }
+.bar-row b .star.on { text-shadow: none; }
+
+/* ---------- Rànquing, savis i vitrina ---------- */
+.tab.on { background: var(--chalk); box-shadow: none; }
+.rank-row.me { box-shadow: none; border-color: rgba(var(--gold-rgb), .55); }
+.dist i { box-shadow: none; }
+.stat b, .streak-num { background: none; color: var(--chalk); -webkit-text-fill-color: currentColor; }
+.streak-num span { -webkit-text-fill-color: var(--muted); }
+.sage { transition: border-color .15s; }
+.sage:hover { transform: none; box-shadow: none; border-color: rgba(var(--rgb), .6); }
+.sage.current { box-shadow: none; }
+.seal.on { background: none; box-shadow: none; animation: none; }
+.seal.stamp { animation: sealStamp .5s ease-out both; }
+.seal-item.new { background: rgba(var(--gold-rgb), .08); }
+.seal-item.new::after { content: none; }
+.shield.on { box-shadow: none; }
+.ms.on::before { box-shadow: none; }
+.calc-opt.on { box-shadow: none; }
+.dist-card.top { box-shadow: none; }
+.dc-curve, .pc-line, .dist-svg.top .dc-area { filter: none; }
+
+/* ---------- Tutorial i compte enrere inicial ---------- */
+.tile.guide, .key.guide { box-shadow: 0 0 0 2px var(--gold) !important; animation: none; }
+.tut-pop { text-shadow: none; }
+.cd-num, .cd-num.last { text-shadow: none; }
+.cd-num-wrap { animation: none; }
+
+/* ---------- Avisos ---------- */
+.toast { box-shadow: 0 8px 24px -8px rgba(0, 0, 0, .6); }
+.banner { box-shadow: 0 8px 24px -8px rgba(0, 0, 0, .6) !important; }
+.modal { background: rgba(5, 7, 10, .82); backdrop-filter: none; }
+.card-prev img { box-shadow: none; }
+
+/* ---------- Escriptori ---------- */
+@media (min-width: 960px) {
+  .nav { background: #0B0E12; }
+  .nav::after { background: var(--line); }
+  .nav-item.on { background: rgba(236, 232, 223, .04); }
+  .nav-item.on::before { top: 10px; bottom: 10px; left: 0; width: 2px; height: auto; margin: 0; }
+}
+
+/* ---------- Estats desactivats: opacs (abans eren transparents i s'hi veia el fons) ---------- */
+.key:disabled { opacity: 1; background: #0F1318; border-color: #1C222A; color: #4A525E !important; box-shadow: none; }
+.key.submit:disabled { background: #2A3038; color: #7D8693 !important; }
+.tile:disabled:not(.used) { opacity: 1; background: #0F1318; border-color: #1C222A; color: #4A525E; box-shadow: none; }
+
+/* ---------- Fora els «claudàtors»: barres daurades a l'esquerra de caixes arrodonides ---------- */
+.lvl-row.next::before { content: none; }
+.lvl-row.next > span:first-child { color: var(--gold-t); }
+.rr-words { border-left: 0; border-top: 1px solid var(--line-2); border-image: none; }
+
+/* ---------- Avís superior: amagat fins que es mostra (funcional, venia de la capa antiga) ---------- */
+.banner { visibility: hidden; transform: translate(-50%, calc(-100% - 40px)); transition: transform .3s ease, visibility 0s .3s; }
+.banner.show { visibility: visible; transform: translate(-50%, 0); transition: transform .3s ease, visibility 0s; }
+
+/* ---------- Logotip clicable: torna a Avui ---------- */
+.wordmark-link { background: none; border: 0; padding: 0; margin: 0; color: inherit; cursor: pointer; border-radius: 4px; }
+.wordmark-link:hover em { color: #fff; }
+
+/* ---------- Rètols: minúscula normal, sense espaiat de plantilla ---------- */
+.kicker { text-transform: none; letter-spacing: 0; font-family: var(--sans); font-size: 13px; }
+.target .kicker { letter-spacing: 0; }
+/* Les caixes de xifres del Rànquing conserven el rètol original */
+.stats .stat .kicker { font-family: var(--mono); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; }
+
+/* ---------- Savis: només el medalló, sense llum al voltant ---------- */
+.sage-art .medal-art { filter: none !important; }
+
+/* ---------- Vitrina: icona de flama (en lloc de l'emoji) ---------- */
+.streak-line svg { color: var(--gold); width: 15px; height: 15px; vertical-align: -2px; }
+
+/* ---------- Normes: només dues negretes (l'hora i els 100 punts) ---------- */
+.tut-rules b { font-weight: inherit; color: inherit; }
+.tut-rules li:nth-child(1) > b:first-child, .tut-rules li:nth-child(4) > b:first-child { font-weight: 600; color: var(--chalk); }
+.tut-rules b.gold { color: var(--gold-t); }

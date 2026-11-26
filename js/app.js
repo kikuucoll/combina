@@ -447,6 +447,8 @@
   };
 
   const wordmark = '<span class="wordmark"><em>combina</em><b>≈</b></span>';
+  // Logotip clicable (capçalera i menú lateral): torna sempre a la pàgina d'Avui
+  const homeMark = '<button type="button" class="wordmark wordmark-link" data-go="avui" aria-label="combina ≈ · torna a Avui" title="Torna a Avui"><em>combina</em><b>≈</b></button>';
 
   /* ================= Fons: operacions que cauen ================= */
   (function rain() {
@@ -484,7 +486,7 @@
     const fresh = ACH.filter(a => store.ach[a.id] && !store.seenAch[a.id]).length;
     const item = (id, label, icon) =>
       `<button type="button" class="nav-item${state.screen === id ? ' on' : ''}" data-go="${id}"${state.screen === id ? ' aria-current="page"' : ''}>${icon}<span>${label}</span>${id === 'vitrina' && fresh ? `<i class="nav-dot" aria-label="${fresh} ${fresh === 1 ? 'segell nou' : 'segells nous'}"></i>` : ''}</button>`;
-    navEl.innerHTML = `<div class="nav-brand">${wordmark}</div>` +
+    navEl.innerHTML = `<div class="nav-brand">${homeMark}</div>` +
       item('avui', 'Avui', ICON.today) + item('ranquing', 'Rànquing', ICON.rank) +
       item('vitrina', 'Vitrina', ICON.trophy) + item('savis', 'Savis', ICON.sages) +
       item('sobre', 'Contacte', ICON.about) + item('tutorial', 'Tutorial', ICON.help);
@@ -513,7 +515,7 @@
     // Convidat: accés discret per guardar el progrés amb Google
     const saveBtn = online() && !state.user ? `<button type="button" class="chip chip-save" data-action="signin" title="Inicia sessió amb Google per guardar el progrés">${ICON.google}<span>Guarda el progrés</span></button>` : '';
     return `<header class="topbar">
-      ${wordmark}
+      ${homeMark}
       <div class="topbar-right">
         ${saveBtn}
         <button type="button" class="chip chip-sound${store.sound === false ? ' off' : ''}" data-action="sound" aria-label="${store.sound === false ? 'Activa el so' : 'Silencia el so'}" title="${store.sound === false ? 'So desactivat' : 'So activat'}">${store.sound === false ? ICON.soundOff : ICON.soundOn}</button>
@@ -2418,7 +2420,7 @@
     const s = stats();
     const cell = (label, v) => `<div class="stat-cell"><b>${v}</b><span>${label}</span></div>`;
     return `<section class="card stats-card" aria-label="Estadístiques">
-      <p class="streak-line">Ratxa actual: <b>${s.streak} ${s.streak === 1 ? 'dia' : 'dies'}</b> 🔥</p>
+      <p class="streak-line">Ratxa actual: <b>${s.streak} ${s.streak === 1 ? 'dia' : 'dies'}</b> ${ICON.flame}</p>
       <div class="stat-grid">
         ${cell('Reptes jugats', s.played)}${cell('Millor puntuació', s.best || '—')}
         ${cell('Mitjana', s.played ? s.avg : '—')}${cell('Rang Gauss', s.played ? s.gaussPct + ' %' : '—')}

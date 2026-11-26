@@ -19,18 +19,21 @@
     .top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 26px; }
     .brand { font-family: var(--serif); font-size: 26px; color: var(--chalk); text-decoration: none; }
     .brand b { color: var(--gold); font-weight: 400; }
-    .kicker { font: 500 11px/1.4 var(--mono); letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+    .kicker { font: 400 13px/1.4 var(--mono); color: var(--muted); }
     h1 { font: 500 34px/1.15 var(--serif); margin: 6px 0 4px; }
     h2 { font: 500 23px/1.25 var(--serif); margin: 36px 0 10px; }
     p, li { color: #D8D4CB; }
     .muted { color: var(--muted); font-size: 14px; }
-    .easy { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--gold); border-radius: 14px; padding: 18px 20px; margin: 22px 0; }
-    .easy h2 { margin-top: 0; }
-    .easy li { margin: 6px 0; }
+    /* Resum: files separades per línies fines (com la llista de nivells del joc), sense panell ni accents */
+    .easy { margin: 34px 0 0; }
+    .easy h2 { margin: 0 0 10px; }
+    .facts { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+    .facts li { margin: 0; padding: 14px 0; border-bottom: 1px solid var(--line); font-size: 16px; line-height: 1.55; color: #D8D4CB; }
+    .facts li b { color: var(--chalk); font-weight: 600; }
     .table { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 8px 0; }
     th, td { text-align: left; vertical-align: top; padding: 9px 10px; border-bottom: 1px solid var(--line); }
-    th { font: 500 11px/1.4 var(--mono); letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
+    th { font: 600 13px/1.4 var(--sans); color: var(--muted); }
     hr { border: 0; border-top: 1px solid var(--line); margin: 40px 0; }
   </style>
 </head>
@@ -47,7 +50,7 @@
 
   <section class="easy" aria-label="Resum fàcil">
     <h2>En poques paraules</h2>
-    <ul>
+    <ul class="facts">
       <li><b>Pots jugar sense donar cap dada personal.</b> Si no entres amb cap compte, el teu progrés només es guarda al teu dispositiu. Quan comences i quan acabes el repte, se suma <b>de manera anònima</b> al recompte del dia (quantes persones han jugat, quantes l'han acabat i la mitjana), sense cap nom ni identificador.</li>
       <li><b>Per sortir al rànquing o desar el progrés amb Google has de tenir 14 anys o més.</b> Si en tens menys, pots jugar igual, però sense rànquing.</li>
       <li>Al rànquing <b>tothom pot veure el teu àlies i els teus punts</b>, però mai el teu correu, el teu nom ni la teva foto. <b>No hi posis el teu nom complet.</b></li>
