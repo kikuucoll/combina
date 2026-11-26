@@ -592,12 +592,15 @@
   }
 
   /* ================= Reptes entre amics ================= */
-  // Enllaç: ?r=<dia>&de=<uid> (amb sessió) o ?r=<dia>&p=<punts> (convidat)
+  // Enllaç: ?r=<nº del repte>&de=<uid> (amb sessió) o ?r=<nº>&p=<punts> (convidat).
+  // Els enllaços antics amb la data (?r=2026-11-26) també funcionen.
   function readChallenge() {
     let q;
     try { q = new URLSearchParams(location.search); } catch (e) { return; }
-    const d = q.get('r');
-    if (!d || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return;
+    const rq = q.get('r');
+    const d = rq && /^\d{1,5}$/.test(rq) && +rq >= 1 ? P.addDays(C.startDate, +rq - 1)
+      : rq && /^\d{4}-\d{2}-\d{2}$/.test(rq) ? rq : null;
+    if (!d) return;
     const uid = q.get('de'), p = q.get('p');
     const ch = { day: d, uid: uid && /^[A-Za-z0-9]{10,40}$/.test(uid) ? uid : null,
       total: p != null && /^\d{1,4}$/.test(p) ? +p : null, name: '', avatar: '' };
@@ -654,7 +657,7 @@
   }
 
   function challengeURL() {
-    const d = day(), p = new URLSearchParams({ r: state.dayKey });
+    const d = day(), p = new URLSearchParams({ r: String(P.challengeNumber(state.dayKey)) });
     if (B.user) p.set('de', B.user.uid);
     else if (d.finished) p.set('p', String(totalOf(d)));
     return location.origin + location.pathname + '?' + p.toString();
@@ -1729,6 +1732,8 @@
     svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
     svg.setAttribute('width', size); svg.setAttribute('height', size);
     svg.removeAttribute('style');
+    // La insígnia de dalt (cy=8, r=9) sobresurt del viewBox 0–200: amb marge no es talla en fer-ne una imatge
+    svg.setAttribute('viewBox', '-12 -12 224 224');
     svg.querySelectorAll('animateTransform, animate').forEach(n => n.remove());
     const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml' }));
     return new Promise((ok, ko) => {
@@ -1752,9 +1757,6 @@
     const SERIF = '"STIX Two Text", Georgia, serif', MONO = '"IBM Plex Mono", Consolas, monospace', SANS = '"IBM Plex Sans", system-ui, sans-serif';
     // Fons: tinta, halo del color del rang i una quadrícula de llibreta molt suau
     g.fillStyle = '#0B0E12'; g.fillRect(0, 0, W, H);
-    let rg = g.createRadialGradient(W / 2, 720, 40, W / 2, 720, 900);
-    rg.addColorStop(0, `rgba(${r.rgb},.30)`); rg.addColorStop(.45, `rgba(${r.rgb},.08)`); rg.addColorStop(1, 'rgba(11,14,18,0)');
-    g.fillStyle = rg; g.fillRect(0, 0, W, H);
     g.strokeStyle = 'rgba(236,232,223,.035)'; g.lineWidth = 2;
     for (let x = 60; x < W; x += 60) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, H); g.stroke(); }
     for (let y = 60; y < H; y += 60) { g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); }
@@ -1768,14 +1770,12 @@
     g.fillText(`Repte nº ${state.puzzle.number} · ${P.prettyDay(state.dayKey)}`, W / 2, 262);
     // Medalla del savi
     try {
-      const im = await medalImage(r.key, 560);
-      g.save(); g.shadowColor = r.color; g.shadowBlur = 60;
-      g.drawImage(im, W / 2 - 280, 330, 560, 560); g.restore();
-      g.drawImage(im, W / 2 - 280, 330, 560, 560);
+      const im = await medalImage(r.key, 627);
+      g.drawImage(im, W / 2 - 313, 296, 627, 627);
     } catch (e) { /* sense medalla */ }
     // Rang
-    g.fillStyle = r.color; g.font = `600 38px ${MONO}`;
-    g.fillText(`RANG ${r.n} · ${r.colorName.toUpperCase()}`, W / 2, 985);
+    g.fillStyle = r.color; g.font = `500 40px ${SANS}`;
+    g.fillText(`Rang ${r.n} · ${r.colorName}`, W / 2, 985);
     g.fillStyle = '#ECE8DF'; g.font = `500 132px ${SERIF}`;
     g.fillText(r.name, W / 2, 1120);
     // Puntuació
@@ -1784,17 +1784,16 @@
     g.font = `500 72px ${MONO}`;
     const mW = g.measureText(' / ' + MAX).width, sx = W / 2 - (tW + mW) / 2;
     g.textAlign = 'left';
-    g.save(); g.shadowColor = 'rgba(230,184,92,.45)'; g.shadowBlur = 40;
-    g.fillStyle = '#FFFFFF'; g.font = `600 230px ${MONO}`; g.fillText(String(total), sx, 1370); g.restore();
+    g.fillStyle = '#ECE8DF'; g.font = `600 230px ${MONO}`; g.fillText(String(total), sx, 1370);
     g.fillStyle = '#7D8693'; g.font = `500 72px ${MONO}`; g.fillText(' / ' + MAX, sx + tW, 1370);
     g.textAlign = 'center';
     // Cinc nivells: una peça per nivell, del color del rang de punts (or = exacte)
     const bw = 150, gap = 22, bx = W / 2 - (5 * bw + 4 * gap) / 2, by = 1440;
     state.puzzle.levels.forEach((L, i) => {
       const st = d.levels[i], p = st && st.done ? st.points : 0, c = levelColor(p, LEVEL_MAX), x = bx + i * (bw + gap);
-      g.beginPath(); g.roundRect ? g.roundRect(x, by, bw, 120, 22) : g.rect(x, by, bw, 120);
+      g.beginPath(); g.roundRect ? g.roundRect(x, by, bw, 120, 12) : g.rect(x, by, bw, 120);
       g.fillStyle = `rgba(${c.rgb},${p >= LEVEL_MAX ? .9 : .16})`; g.fill();
-      g.strokeStyle = `rgba(${c.rgb},.9)`; g.lineWidth = 3; g.stroke();
+      g.strokeStyle = `rgba(${c.rgb},.7)`; g.lineWidth = 2; g.stroke();
       g.fillStyle = p >= LEVEL_MAX ? '#0B0E12' : '#ECE8DF'; g.font = `600 50px ${MONO}`;
       g.fillText(String(p), x + bw / 2, by + 76);
       g.fillStyle = '#7D8693'; g.font = `500 26px ${MONO}`;
@@ -1812,11 +1811,7 @@
     // Peu
     const brag = cardBrag();
     if (brag) {
-      g.font = `600 44px ${SANS}`;
-      const bw2 = g.measureText(brag).width + 80;
-      g.beginPath(); g.roundRect ? g.roundRect(W / 2 - bw2 / 2, 1792, bw2, 76, 38) : g.rect(W / 2 - bw2 / 2, 1792, bw2, 76);
-      g.fillStyle = 'rgba(230,184,92,.16)'; g.fill(); g.strokeStyle = 'rgba(230,184,92,.8)'; g.lineWidth = 2; g.stroke();
-      g.fillStyle = '#E6B85C'; g.fillText(brag, W / 2, 1845);
+      g.font = `600 42px ${SANS}`; g.fillStyle = '#E6B85C'; g.fillText(brag, W / 2, 1842);
       g.fillStyle = '#ECE8DF'; g.font = `600 36px ${SANS}`; g.fillText('Supera’m a combina.cat', W / 2, 1902);
     } else {
       g.fillStyle = '#E6B85C'; g.font = `600 42px ${SANS}`;
