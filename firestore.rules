@@ -90,20 +90,26 @@ service cloud.firestore {
       allow delete: if signedAs(uid);
     }
 
-    // Recompte anònim del dia: { n: persones que l'han acabat, sum: suma dels seus punts }.
-    // Sense cap identificador. Cada escriptura només pot sumar 1 persona i de 0 a 500 punts.
+    // Recompte anònim del dia: { s: persones que l'han començat, n: persones que l'han acabat,
+    // sum: suma dels seus punts }. Sense cap identificador. Cada escriptura és, o bé +1 a s (algú
+    // comença), o bé +1 a n i de 0 a 500 punts a sum (algú acaba). Res més.
     match /stats/{day} {
+      function nd() { return request.resource.data; }
+      function startOnly() { return nd().keys().hasOnly(['s']) && nd().s == 1; }
+      function finishOnly() {
+        return nd().keys().hasOnly(['n', 'sum']) && nd().n == 1
+          && nd().sum is int && nd().sum >= 0 && nd().sum <= 500;
+      }
       allow read: if true;
-      allow create: if day.matches('^20[0-9]{2}-[0-9]{2}-[0-9]{2}$')
-        && request.resource.data.keys().hasOnly(['n', 'sum'])
-        && request.resource.data.n == 1
-        && request.resource.data.sum is int
-        && request.resource.data.sum >= 0 && request.resource.data.sum <= 500;
-      allow update: if request.resource.data.keys().hasOnly(['n', 'sum'])
-        && request.resource.data.n == resource.data.n + 1
-        && request.resource.data.sum is int
-        && request.resource.data.sum >= resource.data.sum
-        && request.resource.data.sum <= resource.data.sum + 500;
+      allow create: if day.matches('^20[0-9]{2}-[0-9]{2}-[0-9]{2}$') && (startOnly() || finishOnly());
+      allow update: if nd().keys().hasOnly(['n', 'sum', 's'])
+        && ((nd().diff(resource.data).affectedKeys().hasOnly(['s'])
+             && nd().s == resource.data.get('s', 0) + 1)
+         || (nd().diff(resource.data).affectedKeys().hasOnly(['n', 'sum'])
+             && nd().n == resource.data.get('n', 0) + 1
+             && nd().sum is int
+             && nd().sum >= resource.data.get('sum', 0)
+             && nd().sum <= resource.data.get('sum', 0) + 500));
     }
 
     // Progrés privat (ratxa, segells, dies jugats): només el propi jugador

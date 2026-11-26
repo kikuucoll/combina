@@ -5,7 +5,7 @@
  *   days/{AAAA-MM-DD}/scores/{uid} → { name, avatar, total, exact, levels:[p1..p5], at }   (públic: sense operacions)
  *   players/{uid}                   → { name, avatar, sum, days, best, last, updatedAt }
  *   saves/{uid}                     → { data: "<progrés local en JSON>", at }   (privat)
- *   stats/{AAAA-MM-DD}              → { n, sum }   (recompte anònim de tots els qui acaben el repte)
+ *   stats/{AAAA-MM-DD}              → { s, n, sum }   (recompte anònim: qui comença, qui acaba i la suma de punts)
  */
 (function (global) {
   'use strict';
@@ -221,6 +221,10 @@
 
     /* Recompte anònim del dia: quantes persones l'han acabat i la suma dels seus punts.
      * stats/{AAAA-MM-DD} → { n, sum }. Sense cap nom ni identificador; també compta els convidats. */
+    countStart: function (dayKey) {
+      if (!enabled) return Promise.reject(new Error('sense Firebase'));
+      return db.collection('stats').doc(dayKey).set({ s: global.firebase.firestore.FieldValue.increment(1) }, { merge: true });
+    },
     countPlayer: function (dayKey, total) {
       if (!enabled) return Promise.reject(new Error('sense Firebase'));
       var inc = global.firebase.firestore.FieldValue.increment;

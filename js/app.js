@@ -1137,7 +1137,7 @@
     state.level = i;
     const d = day();
     if (!(d.levels[i] && d.levels[i].startAt)) {
-      if (i === 0 && !state.practice) track('repte-comencat', 'Repte començat');
+      if (i === 0 && !state.practice) { track('repte-comencat', 'Repte començat'); setTimeout(countStart, 0); }
       d.levels[i] = { tokens: [], startAt: Date.now(), done: false, v2: true, v: 3 };
       save();
     }
@@ -1147,7 +1147,7 @@
   function startLevel() {
     const d = day(), i = state.level;
     if (d.levels[i] && d.levels[i].startAt) return;
-    if (i === 0 && !state.practice) track('repte-comencat', 'Repte començat');
+    if (i === 0 && !state.practice) { track('repte-comencat', 'Repte començat'); setTimeout(countStart, 0); }
     d.levels[i] = { tokens: [], startAt: Date.now(), done: false, v2: true, v: 3 };
     save();
     render();
@@ -1676,10 +1676,20 @@
       if (state.screen === 'resultat' || state.screen === 'ranquing') loadStats();
     }).catch(e => console.warn('No s’ha pogut sumar al recompte', e)).then(() => { state.countBusy = false; });
   }
+  // Qui comença el repte del dia (marca `startCounted`); tampoc per als menors
+  function countStart() {
+    const k = state.dayKey, d = store.days[k];
+    if (!online() || state.practice || !d || !d.levels[0] || !d.levels[0].startAt || d.startCounted || state.startBusy) return;
+    state.startBusy = true;
+    B.countStart(k).then(() => { d.startCounted = true; save(); })
+      .catch(e => console.warn('No s’ha pogut sumar al recompte', e)).then(() => { state.startBusy = false; });
+  }
   function statsLine() {
     const S = state.stats, x = S && S.key === state.dayKey && S.data;
-    if (!x || !(x.n > 0)) return '';
-    return `<p class="day-stats">Avui han jugat <b>${x.n}</b> ${x.n === 1 ? 'persona' : 'persones'} · mitjana <b>${Math.round(x.sum / x.n)}</b> punts</p>`;
+    if (!x || !(x.n > 0 || x.s > 0)) return '';
+    // Només quanta gent ha jugat (qui ha començat el repte; els dies sense aquest recompte, qui l'ha acabat)
+    const p = Math.max(x.s || 0, x.n || 0);
+    return `<p class="day-stats">Avui han jugat <b>${p}</b> ${p === 1 ? 'persona' : 'persones'}</p>`;
   }
   function statsSlot() { return B.enabled && !state.practice ? `<div id="stats-slot">${statsLine()}</div>` : ''; }
   function loadStats() {
@@ -2723,7 +2733,7 @@
   if (B.enabled) {
     B.redirectResult().then(r => { if (r && r.user) track('google-ok_' + envTag(), 'Entrada amb Google'); }).catch(e => authFail('google', e));
     // Partides acabades que encara no s'han sumat al recompte (sense connexió, o d'abans d'existir-ne)
-    setTimeout(countDay, 3000);
+    setTimeout(() => { countStart(); countDay(); }, 3000);
     // Si Firebase tarda, no deixem la pantalla en blanc
     setTimeout(() => { if (!state.screen) firstScreen(); }, 2500);
   }
