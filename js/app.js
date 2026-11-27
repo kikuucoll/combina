@@ -2139,6 +2139,25 @@
       const max = Math.max.apply(null, counts) || 1, all = counts.reduce((a, c) => a + c, 0) || 1;
       dist = '<div class="dist" aria-label="Distribució de rangs">' + SV.list.map((s, i) =>
         `<div><small>${Math.round(counts[i] / all * 100)}%</small><i style="height:${Math.max(4, counts[i] / max * 56)}px;background:${s.color}"></i><small>${s.name}</small></div>`).join('') + '</div>';
+      // Campana de Gauss superposada a les barres: normal ajustada als mateixos recomptes (cada barra = 100 punts),
+      // a la mateixa escala que les barres, amb la mitjana marcada. Sense consultes noves.
+      if (all >= (C.distMin || 20)) {
+        const mids = [50, 150, 250, 350, 450];
+        // Mitjana exacta del recompte del dia (stats: n i suma), si ja s'ha carregat; si no, estimada amb les barres
+        const S = state.stats && state.stats.key === state.dayKey && state.stats.data;
+        const mu = S && S.n > 0 && S.sum ? S.sum / S.n : counts.reduce((a, c, i) => a + c * mids[i], 0) / all;
+        const sd = Math.max(30, Math.sqrt(counts.reduce((a, c, i) => a + c * (mids[i] - mu) * (mids[i] - mu), 0) / all + 100 * 100 / 12));
+        const pdf = v => Math.exp(-0.5 * Math.pow((v - mu) / sd, 2)) / (sd * Math.sqrt(2 * Math.PI));
+        const pts = [];
+        for (let v = 0; v <= 500; v += 5) pts.push(v + ',' + (80 - all * 100 * pdf(v) / max * 56).toFixed(1));
+        dist = `<div class="dist-wrap">${dist}
+          <svg class="dist-bell" viewBox="0 0 500 80" preserveAspectRatio="none" aria-hidden="true">
+            <polyline points="${pts.join(' ')}" fill="none" stroke="#ECE8DF" stroke-opacity=".9" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+            <line x1="${mu.toFixed(1)}" x2="${mu.toFixed(1)}" y1="6" y2="80" stroke="#E6B85C" stroke-width="1" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>
+          </svg>
+          <span class="dist-mu" style="left:${(mu / 5).toFixed(1)}%">mitjana ${Math.round(mu)}</span>
+        </div>`;
+      }
     }
     const me = B.user && B.user.uid;
     const list = rows.slice(0, 100).map((r, i) => {

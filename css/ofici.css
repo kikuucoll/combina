@@ -224,3 +224,11 @@ button.chip:hover, .btn-ghost:hover { border-color: #4A525E; box-shadow: none; }
 
 /* ---------- Resultat: medallons petits de la barra de puntuació, sense resplendor ---------- */
 .rl-medal .medal-art { filter: none !important; }
+
+/* ---------- Rànquing d'avui: campana de Gauss superposada a les barres dels savis ---------- */
+.dist-wrap { position: relative; padding-top: 22px; }
+.dist-bell { position: absolute; left: 0; right: 0; bottom: 17px; height: 80px; width: 100%; overflow: visible; pointer-events: none; }
+.dist-mu { position: absolute; top: 0; transform: translateX(-50%); font-family: var(--mono); font-size: 10px; color: var(--gold-t); white-space: nowrap; }
+.dist-wrap .dist small { position: relative; z-index: 1; text-shadow: 0 0 3px #0B0E12, 0 0 3px #0B0E12; }
+/* Barres una mica més transparents perquè la línia de la campana destaqui */
+.dist-wrap .dist i { opacity: .68; }
