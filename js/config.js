@@ -24,6 +24,9 @@ window.COMBINA_CONFIG = {
   // N5 amb 5 xifres que cada dia obliga a fer una potència, una arrel o un parèntesi amb dues
   // operacions; i als nivells 4 i 5 la calculadora ja no diu a quina distància estàs.
   v3From: '2026-11-26',
+  // A partir d'aquest repte, el N4 surt del generador del joc (6 xifres, 12–20 maneres) i no de la taula
+  // de reptes.js (5 xifres, 3+ maneres, massa difícil: el 26/11 només el 5 % el va encertar)
+  softN4From: '2026-11-27',
   // Puntuació màxima del dia (5 rondes × 100 punts)
   dailyTotal: 500,
   levelMax: 100,

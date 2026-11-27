@@ -488,6 +488,10 @@
     return { count: count, nums: nums, target: pool[0].v, solution: pool[0].s };
   }
 
+  function softN4(k) {
+    var from = cfg().softN4From;
+    return !!from && (!/^\d{4}-\d{2}-\d{2}$/.test(k) || k >= from);
+  }
   function genV3N4(k) {
     var S = V3.n4, rng = rng3('combina|' + k + '|3|v3'), backup = null, gap = Infinity, mid = (S.minWays + S.maxWays) / 2;
     for (var t = 0; t < S.attempts; t++) {
@@ -544,7 +548,9 @@
     var c = cfg(), total = c.dailyTotal || 500;
     var n = /^\d{4}-\d{2}-\d{2}$/.test(k) ? challengeNumber(k) : 0;
     var levels = c.levelCounts.map(function (count, i) {
-      var cand = (i === 3 && ver >= 3 && (fromTable(k, 'n4') || genV3N4(k))) || (i === 4 && ver >= 3 && (fromTable(k, 'n5') || genV3N5(k))) ||
+      // N4 suau (des de softN4From): el generador del joc (6 xifres, 12–20 maneres) en lloc de la taula
+      // (5 xifres, 3+ maneres). El 26/11 amb la taula només el 5 % el va encertar i el 53 % es va quedar sense temps.
+      var cand = (i === 3 && ver >= 3 && ((!softN4(k) && fromTable(k, 'n4')) || genV3N4(k))) || (i === 4 && ver >= 3 && (fromTable(k, 'n5') || genV3N5(k))) ||
         (i === 4 && ver === 2 && genHard(k)) || genCandidates(rngFor('combina|' + k + '|' + i), count, i, n, 1, k)[0];
       if (cand) return cand;
       // Reserva (pràcticament impossible): la suma de totes les xifres
