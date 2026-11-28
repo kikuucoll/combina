@@ -62,8 +62,85 @@
   <link rel="stylesheet" href="fonts/fonts.css">
   <link rel="stylesheet" href="css/styles.css">
   <link rel="stylesheet" href="css/ofici.css">
+  <!-- Pantalla de càrrega: el cercle del logo s'omple a mesura que arriben les peces de la web.
+       El text de sota es queda a l'HTML (per als cercadors), només s'amaga mentre carrega. -->
+  <style>
+    .splash { display: none; }
+    html.splash .splash { display: flex; }
+    html.splash .shell, html.splash #rain { visibility: hidden; }
+    .splash { position: fixed; inset: 0; z-index: 9999; align-items: center; justify-content: center; background: #0B0E12; transition: opacity .38s cubic-bezier(.4, 0, .2, 1); }
+    .splash.out { opacity: 0; pointer-events: none; }
+    .splash svg { width: 64px; height: 64px; transition: transform .5s cubic-bezier(.2, .8, .2, 1); }
+    .splash.out svg { transform: scale(.94); }
+    .splash .sp-ring { transform: rotate(-90deg); transform-origin: 32px 32px; }
+    .splash .sp-wv { stroke: rgba(236, 232, 223, .22); transition: stroke .28s ease; }
+    .splash.ok .sp-wv { stroke: #E6B85C; }
+    html.splash-in .shell { animation: splashIn .55s cubic-bezier(.2, .8, .2, 1) .08s both; }
+    @keyframes splashIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    @media (prefers-reduced-motion: reduce) {
+      .splash svg, .splash .sp-wv { transition: none; }
+      html.splash-in .shell { animation: splashFade .2s both; }
+      @keyframes splashFade { from { opacity: 0; } to { opacity: 1; } }
+    }
+  </style>
+  <script>document.documentElement.classList.add('splash');</script>
 </head>
 <body>
+  <div id="splash" class="splash" role="progressbar" aria-label="Carregant combina" aria-valuemin="0" aria-valuemax="100">
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <circle cx="32" cy="32" r="30" fill="none" stroke="rgba(236,232,223,.10)" stroke-width="1.5"/>
+      <circle class="sp-ring" cx="32" cy="32" r="30" fill="none" stroke="#E6B85C" stroke-width="1.5" stroke-linecap="round" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"/>
+      <g fill="none" stroke-width="3.4">
+        <path class="sp-wv" d="M20.2,29.3 C24.4,23.4 28.2,24.6 31.4,27.4 C34.6,30.2 38.4,31.6 43.6,25.7"/>
+        <path class="sp-wv" d="M19.8,40.3 C24,34.4 27.8,35.6 31,38.4 C34.2,41.2 38,42.6 43.2,36.7"/>
+      </g>
+    </svg>
+  </div>
+  <script>
+    /* Progrés real: cada peça carregada marca una fita (combinaSplash.at) i l'app avisa quan ja
+     * ha pintat la primera pantalla (combinaSplash.done). Entre fites, el cercle llisca sense arribar-hi.
+     * Mínim 0,6 s (que no faci pampallugues) i màxim 5 s (mai ningú es queda atrapat). */
+    (function () {
+      var d = document, r = d.documentElement, sp = d.getElementById('splash');
+      var ring = sp.querySelector('.sp-ring'), now = function () { return performance.now(); };
+      var MIN = 600, MAX = 5000, FITES = [.15, .35, .55, .7];
+      var t0 = now(), last = t0, hit = t0, reached = 0, p = 0, ready = false, fet = false;
+      var quiet = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+      function seguent() { for (var i = 0; i < FITES.length; i++) if (FITES[i] > reached) return FITES[i]; return .95; }
+      function acaba() {
+        if (fet) return; fet = true;
+        ring.style.strokeDashoffset = 0; sp.classList.add('ok');
+        setTimeout(function () {
+          sp.classList.add('out');
+          r.classList.remove('splash'); r.classList.add('splash-in');
+          setTimeout(function () { if (sp.parentNode) sp.parentNode.removeChild(sp); r.classList.remove('splash-in'); }, 700);
+        }, quiet ? 0 : 260);
+      }
+      function frame(t) {
+        if (fet) return;
+        var dt = Math.min(t - last, 50), el = t - t0, goal; last = t;
+        if ((ready && el >= MIN) || el >= MAX) goal = 1;
+        else {
+          // Ràpid cap a la fita següent i, si tarda, un avanç lent continu perquè mai sembli encallat
+          var n = seguent(), w = t - hit;
+          goal = Math.min(.95, reached + (n - reached) * .8 * (1 - Math.exp(-w / 700)) + (.95 - n) * .6 * (1 - Math.exp(-w / 6000)));
+        }
+        if (goal < p) goal = p; // el cercle no recula mai
+        p = quiet ? goal : p + (goal - p) * (1 - Math.exp(-dt / (goal === 1 ? 90 : 160)));
+        ring.style.strokeDashoffset = (100 - p * 100).toFixed(2);
+        sp.setAttribute('aria-valuenow', Math.round(p * 100));
+        if (goal === 1 && p > .995) return acaba();
+        requestAnimationFrame(frame);
+      }
+      window.combinaSplash = {
+        at: function (v) { if (v > reached) { reached = v; hit = now(); } },
+        done: function () { ready = true; if (reached < .7) { reached = .7; hit = now(); } }
+      };
+      requestAnimationFrame(frame);
+      // Xarxa de seguretat (p. ex. si el navegador no pinta fotogrames): entra igualment
+      setTimeout(acaba, MAX + 1500);
+    })();
+  </script>
   <div id="rain" class="rain" aria-hidden="true"></div>
   <div class="shell">
     <nav id="nav" class="nav" aria-label="Navegació principal"></nav>
@@ -83,6 +160,7 @@
 
   <script src="js/config.js"></script>
   <script>
+    combinaSplash.at(.15);
     // Carrega Firebase només si està configurat
     if (window.COMBINA_CONFIG && window.COMBINA_CONFIG.firebase) {
       ['firebase-app-compat', 'firebase-auth-compat', 'firebase-firestore-compat'].forEach(function (n) {
@@ -90,13 +168,16 @@
       });
     }
   </script>
+  <script>combinaSplash.at(.35);</script>
   <script src="js/expr.js"></script>
   <script src="js/reptes.js"></script>
   <script src="js/puzzle.js"></script>
+  <script>combinaSplash.at(.55);</script>
   <script src="js/medals.js"></script>
   <script src="js/backend.js"></script>
   <script src="js/sound.js"></script>
   <script src="js/app.js"></script>
+  <script>combinaSplash.at(.7);</script>
   <!-- Estadístiques de visites (GoatCounter: sense galetes ni dades personals) -->
   <script data-goatcounter="https://combina.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 </body>

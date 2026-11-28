@@ -505,6 +505,8 @@
     if (state.screen === 'resultat') { animateResult(); loadDist(); loadStats(); }
     if (state.screen === 'resultat' || state.screen === 'desglos') prepareCard();
     tickCountdowns();
+    // Primera pantalla pintada: la pantalla de càrrega ja pot acabar
+    if (window.combinaSplash) window.combinaSplash.done();
   }
 
   function header() {
@@ -1867,7 +1869,9 @@
     if (!day().finished || state.practice) return Promise.resolve(null);
     const key = cardKey();
     if (state.card && state.card.key === key) return state.card.ready;
-    const c = { key, file: null, url: null, name: 'combina-' + state.puzzle.number + '.png' };
+    // L'iPhone mostra els fitxers compartits des d'una web amb una icona de document (decisió de WebKit):
+    // almenys el nom que surt al costat ha de dir alguna cosa
+    const c = { key, file: null, url: null, name: 'combina ≈ nº ' + state.puzzle.number + ' · ' + totalOf(day()) + ' punts.png' };
     c.ready = buildCard().then(blob => {
       if (!blob) return null;
       c.file = new File([blob], c.name, { type: 'image/png' });
@@ -1896,7 +1900,8 @@
     if (c && c.file && navigator.canShare && navigator.canShare({ files: [c.file] })) {
       track('resultat_compartit', 'Resultat compartit');
       copyMessage();   // per si l'app triada només agafa la imatge (Instagram): el text queda copiat
-      navigator.share({ files: [c.file], text: shareMessage() }).catch(err => {
+      // title buit: a l'iPhone, segons alguns desenvolupadors, ajuda les apps que reben la imatge (no documentat per Apple)
+      navigator.share({ files: [c.file], title: '', text: shareMessage() }).catch(err => {
         if (err && err.name === 'AbortError') return;
         // Alguns navegadors no deixen compartir fitxers amb text: com a mínim el missatge amb l'enllaç
         if (navigator.share) navigator.share({ text: shareMessage() }).catch(() => {});
