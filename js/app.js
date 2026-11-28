@@ -681,8 +681,8 @@
   function nameCard(total) {
     if (!online() || B.user) return '';
     return `<form class="card name-card" id="name-card" onsubmit="return false">
-      <p class="kicker gold">Surt al rànquing d'avui</p>
-      <p class="small">Tria un àlies (no el teu nom complet) i els teus <b class="chalk">${total} punts</b> apareixeran a la llista de jugadors.</p>
+      <p class="share-lead">Surt al rànquing d'avui</p>
+      <p class="small">Tria un àlies i els teus <b class="chalk">${total} punts</b> apareixeran a la llista de jugadors.</p>
       <div class="name-row">
         <input class="guest-name" type="text" maxlength="20" autocomplete="nickname" spellcheck="false" placeholder="Un àlies" aria-label="Un àlies (no el teu nom complet)">
         <button type="button" class="btn btn-primary btn-sm" data-action="guest-join">Desa</button>
@@ -1540,10 +1540,10 @@
             <div><p class="kicker" style="color:${r.color}">Rang ${r.n} · ${r.colorName}</p><h1 class="res-name">${r.name}</h1></div>
           </div>
           <div class="res-actions">
-            <button type="button" class="btn btn-gold" data-action="share">${ICON.share}Comparteix el teu resultat</button>
+            ${bragCard(total) || `<button type="button" class="btn btn-gold" data-action="share">${ICON.share}Comparteix el teu resultat</button>`}
+            ${nameCard(total)}
             <button type="button" class="btn-text" data-go="desglos">Com ho has resolt? <span aria-hidden="true">→</span></button>
           </div>
-          ${nameCard(total)}
           ${sageWordsHTML(r, total)}
         </div>
         <div>
@@ -1570,16 +1570,48 @@
     </section>`;
   }
 
+  /* Bon resultat: en lloc del botó normal, una invitació sòbria a enviar el repte (grups de WhatsApp).
+   * La crida és a IGUALAR, no a superar (superar genera rebuig i no es comparteix).
+   *  · ≥ C.bragFrom (430): «per sobre de la mitjana», amb el % només quan ja hi ha dades del dia.
+   *    Si les dades diuen que és per sota (dia fàcil), baixa al text de «molt bon resultat».
+   *  · ≥ C.goodFrom (350): «molt bon resultat».   · Per sota: el botó normal de compartir. */
+  function bragInfo(total) {
+    if (state.practice || total < (C.goodFrom || 350)) return null;
+    const I = distInfo(), MAX = maxTotal();
+    if (total >= MAX) return { kind: 'perfect', I };
+    const high = total >= (C.bragFrom || 430) && (!I || I.mode === 'up' || I.mode === 'top');
+    if (!high) return { kind: 'good', I };
+    return { kind: I && I.pct >= 90 ? 'top' : 'above', I };
+  }
+  function bragOn(total) { return !!bragInfo(total); }
+  function bragCard(total) {
+    const b = bragInfo(total);
+    if (!b) return '';
+    // Com el requadre de «Continua amb Google» del rànquing: una frase i un sol botó (l'estratègia de Wordle)
+    const I = b.I, lead = {
+      perfect: 'Dia perfecte.',
+      top: `Ets al ${I ? Math.max(1, 100 - I.pct) : 10} % millor d’avui.`,
+      above: 'Estàs per sobre de la mitjana.',
+      good: 'Molt bon resultat.'
+    }[b.kind];
+    trackOnce('brag_vist', 'Targeta de bon resultat vista');
+    return `<div class="card notice share-card" id="brag-slot">
+        <p class="share-lead">${lead}</p>
+        <p class="small">Els teus amics podran igualar-te?</p>
+        <button type="button" class="btn btn-primary btn-sm" data-action="share">${ICON.share}Comparteix</button>
+      </div>`;
+  }
+
   // Targeta d'emojis: es copia al porta-retalls i, al mòbil, s'obre el menú de compartir
   function shareText() {
-    const d = day(), total = totalOf(d), r = SV.rankFor(total), stars = starsOf(d);
-    // 🟡 exacte · 🟢 75 o més · 🟠 40–74 · 🔴 menys de 40
+    const d = day(), total = totalOf(d), r = SV.rankFor(total);
+    // ⭐ totes les xifres · 🟢 exacte (100) · 🟡 ha puntuat · 🔴 0 punts
     const marks = state.puzzle.levels.map((L, i) => {
-      const p = d.levels[i] ? d.levels[i].points : 0;
-      return p >= LEVEL_MAX ? '🟡' : p >= 75 ? '🟢' : p >= 40 ? '🟠' : '🔴';
+      const st = d.levels[i], p = st ? st.points : 0;
+      return st && st.star ? '⭐' : p >= LEVEL_MAX ? '🟢' : p > 0 ? '🟡' : '🔴';
     }).join('');
     const s = streak();
-    return `combina ≈ nº ${state.puzzle.number}\n${marks}${stars ? ' ' + '⭐'.repeat(stars) : ''}\n${total}/${maxTotal()} · ${r.name}${s > 1 ? ` · 🔥${s}` : ''}`;
+    return `combina ≈ nº ${state.puzzle.number}\n${marks}\n${total}/${maxTotal()} · ${r.name}${s > 1 ? ` · 🔥${s}` : ''}`;
   }
 
 
@@ -1720,6 +1752,8 @@
       state.dist = { key, at: Date.now(), data };
       const slot = document.getElementById('dist-slot');
       if (slot && state.screen === 'resultat') { slot.outerHTML = distCard(); prepareCard(); }
+      const bs = document.getElementById('brag-slot');
+      if (bs && state.screen === 'resultat') { const t = totalOf(day()); bs.outerHTML = bragCard(t) || `<button type="button" class="btn btn-gold" data-action="share">${ICON.share}Comparteix el teu resultat</button>`; }
     }).catch(e => { state.dist = { key, at: Date.now(), data: null }; console.warn('Distribució no disponible', e); });
   }
 
@@ -1844,7 +1878,12 @@
     state.card = c;
     return c.ready;
   }
-  function shareMessage() { return shareText() + '\n' + challengeURL(); }
+  function shareMessage() {
+    const t = totalOf(day());
+    // Crida a igualar (no a superar): convida sense humiliar, i qui rep el missatge té un objectiu concret
+    const b = bragInfo(t), hook = b ? `He fet ${t} punts al combina ≈ d’avui. Podràs igualar-me?\n\n` : '';
+    return hook + shareText() + '\n' + challengeURL();
+  }
   function copyMessage() {
     try { if (navigator.clipboard) return navigator.clipboard.writeText(shareMessage()).then(() => true, () => false); } catch (e) { /* sense porta-retalls */ }
     return Promise.resolve(false);
@@ -1852,6 +1891,7 @@
 
   function shareResult() {
     const c = state.card;
+    if (bragOn(totalOf(day()))) trackOnce('brag_clic', 'Repte enviat als amics (bon resultat)');
     // Mòbil: imatge i missatge junts al menú del sistema (WhatsApp, Instagram, X…)
     if (c && c.file && navigator.canShare && navigator.canShare({ files: [c.file] })) {
       track('resultat_compartit', 'Resultat compartit');

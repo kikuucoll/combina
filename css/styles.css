@@ -1064,3 +1064,15 @@ html, body, button, a, .tile, .key { touch-action: manipulation; }
 .follow-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
 .follow-row a { display: inline-flex; align-items: center; gap: 7px; padding: 8px 14px; border: 1px solid var(--line-2); border-radius: 999px; color: var(--muted); font-size: 13px; text-decoration: none; transition: color .2s, border-color .2s; }
 .follow-row a:hover, .follow-row a:focus-visible { color: var(--gold-t); border-color: rgba(var(--gold-rgb), .5); }
+
+/* Bon resultat (≥350): mateix requadre que «Continua amb Google» del rànquing */
+.res-actions .share-card { width: 100%; text-align: left; }
+.share-card p { color: var(--muted); line-height: 1.45; margin: 0; }
+.share-card .btn { width: 100%; }
+.share-card { gap: 4px; }
+.share-lead, .share-card .share-lead { margin: 0; color: var(--gold-t); font-size: 18px; font-weight: 700; line-height: 1.25; }
+.share-card .btn { margin-top: 8px; }
+.name-card { gap: 4px; }
+.name-card > p.small { color: var(--muted); margin: 0; line-height: 1.45; }
+.name-card .name-row { margin-top: 8px; }
+.name-card .btn-text { margin-top: 4px; }
