@@ -65,36 +65,42 @@
   <!-- Pantalla de càrrega: el cercle del logo s'omple a mesura que arriben les peces de la web.
        El text de sota es queda a l'HTML (per als cercadors), només s'amaga mentre carrega. -->
   <style>
+    html { background: #0B0E12; }
     .splash { display: none; }
-    html.splash .splash { display: flex; }
-    html.splash .shell, html.splash #rain { visibility: hidden; }
+    html.sp-carregant .splash { display: flex; }
+    html.sp-carregant .shell, html.sp-carregant #rain { visibility: hidden; }
     .splash { position: fixed; inset: 0; z-index: 9999; align-items: center; justify-content: center; background: #0B0E12; transition: opacity .38s cubic-bezier(.4, 0, .2, 1); }
     .splash.out { opacity: 0; pointer-events: none; }
-    .splash svg { width: 64px; height: 64px; transition: transform .5s cubic-bezier(.2, .8, .2, 1); }
-    .splash.out svg { transform: scale(.94); }
+    .splash .sp-logo { position: relative; width: 64px; height: 64px; transition: transform .5s cubic-bezier(.2, .8, .2, 1); }
+    .splash .sp-logo img, .splash .sp-logo svg { position: absolute; inset: 0; width: 64px; height: 64px; }
+    .splash.out .sp-logo { transform: scale(.94); }
     .splash .sp-ring { transform: rotate(-90deg); transform-origin: 32px 32px; }
-    .splash .sp-wv { stroke: rgba(236, 232, 223, .22); transition: stroke .28s ease; }
+    .splash .sp-wv { stroke: transparent; transition: stroke .28s ease; }
     .splash.ok .sp-wv { stroke: #E6B85C; }
-    html.splash-in .shell { animation: splashIn .55s cubic-bezier(.2, .8, .2, 1) .08s both; }
+    html.sp-entrant .shell { animation: splashIn .55s cubic-bezier(.2, .8, .2, 1) .08s both; }
     @keyframes splashIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
     @media (prefers-reduced-motion: reduce) {
-      .splash svg, .splash .sp-wv { transition: none; }
-      html.splash-in .shell { animation: splashFade .2s both; }
+      .splash .sp-logo, .splash .sp-wv { transition: none; }
+      html.sp-entrant .shell { animation: splashFade .2s both; }
       @keyframes splashFade { from { opacity: 0; } to { opacity: 1; } }
     }
   </style>
-  <script>document.documentElement.classList.add('splash');</script>
+  <script>document.documentElement.classList.add('sp-carregant');</script>
 </head>
 <body>
   <div id="splash" class="splash" role="progressbar" aria-label="Carregant combina" aria-valuemin="0" aria-valuemax="100">
-    <svg viewBox="0 0 64 64" aria-hidden="true">
-      <circle cx="32" cy="32" r="30" fill="none" stroke="rgba(236,232,223,.10)" stroke-width="1.5"/>
-      <circle class="sp-ring" cx="32" cy="32" r="30" fill="none" stroke="#E6B85C" stroke-width="1.5" stroke-linecap="round" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"/>
-      <g fill="none" stroke-width="3.4">
-        <path class="sp-wv" d="M20.2,29.3 C24.4,23.4 28.2,24.6 31.4,27.4 C34.6,30.2 38.4,31.6 43.6,25.7"/>
-        <path class="sp-wv" d="M19.8,40.3 C24,34.4 27.8,35.6 31,38.4 C34.2,41.2 38,42.6 43.2,36.7"/>
-      </g>
-    </svg>
+    <div class="sp-logo">
+      <!-- Base del logo com a imatge: Chrome no mostra la pàgina fins al primer «contingut» (text o imatge),
+           i un SVG de línies no hi compta; sense això, en recarregar es veia en blanc fins al final -->
+      <img alt="" width="64" height="64" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='none' stroke='rgba(236,232,223,.10)' stroke-width='1.5'/%3E%3Cg fill='none' stroke='rgba(236,232,223,.22)' stroke-width='3.4'%3E%3Cpath d='M20.2,29.3 C24.4,23.4 28.2,24.6 31.4,27.4 C34.6,30.2 38.4,31.6 43.6,25.7'/%3E%3Cpath d='M19.8,40.3 C24,34.4 27.8,35.6 31,38.4 C34.2,41.2 38,42.6 43.2,36.7'/%3E%3C/g%3E%3C/svg%3E">
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <circle class="sp-ring" cx="32" cy="32" r="30" fill="none" stroke="#E6B85C" stroke-width="1.5" stroke-linecap="round" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"/>
+        <g fill="none" stroke-width="3.4">
+          <path class="sp-wv" d="M20.2,29.3 C24.4,23.4 28.2,24.6 31.4,27.4 C34.6,30.2 38.4,31.6 43.6,25.7"/>
+          <path class="sp-wv" d="M19.8,40.3 C24,34.4 27.8,35.6 31,38.4 C34.2,41.2 38,42.6 43.2,36.7"/>
+        </g>
+      </svg>
+    </div>
   </div>
   <script>
     /* Progrés real: cada peça carregada marca una fita (combinaSplash.at) i l'app avisa quan ja
@@ -103,7 +109,7 @@
     (function () {
       var d = document, r = d.documentElement, sp = d.getElementById('splash');
       var ring = sp.querySelector('.sp-ring'), now = function () { return performance.now(); };
-      var MIN = 600, MAX = 5000, FITES = [.15, .35, .55, .7];
+      var MIN = 600, MAX = 5000, FITES = [.1, .25, .4, .55, .7];
       var t0 = now(), last = t0, hit = t0, reached = 0, p = 0, ready = false, fet = false;
       var quiet = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
       function seguent() { for (var i = 0; i < FITES.length; i++) if (FITES[i] > reached) return FITES[i]; return .95; }
@@ -112,8 +118,8 @@
         ring.style.strokeDashoffset = 0; sp.classList.add('ok');
         setTimeout(function () {
           sp.classList.add('out');
-          r.classList.remove('splash'); r.classList.add('splash-in');
-          setTimeout(function () { if (sp.parentNode) sp.parentNode.removeChild(sp); r.classList.remove('splash-in'); }, 700);
+          r.classList.remove('sp-carregant'); r.classList.add('sp-entrant');
+          setTimeout(function () { if (sp.parentNode) sp.parentNode.removeChild(sp); r.classList.remove('sp-entrant'); }, 700);
         }, quiet ? 0 : 260);
       }
       function frame(t) {
@@ -160,24 +166,23 @@
 
   <script src="js/config.js"></script>
   <script>
-    combinaSplash.at(.15);
-    // Carrega Firebase només si està configurat
-    if (window.COMBINA_CONFIG && window.COMBINA_CONFIG.firebase) {
-      ['firebase-app-compat', 'firebase-auth-compat', 'firebase-firestore-compat'].forEach(function (n) {
-        document.write('<script src="https://www.gstatic.com/firebasejs/10.12.2/' + n + '.js"><\/script>');
+    /* Scripts sense bloquejar la pàgina (així el navegador pinta el logo de seguida), però
+     * executats en aquest ordre exacte (async = false). Cada un que arriba fa avançar el cercle. */
+    (function () {
+      var fb = 'https://www.gstatic.com/firebasejs/10.12.2/', list = [];
+      // Firebase només si està configurat
+      if (window.COMBINA_CONFIG && window.COMBINA_CONFIG.firebase)
+        list.push(fb + 'firebase-app-compat.js', fb + 'firebase-auth-compat.js', fb + 'firebase-firestore-compat.js');
+      list.push('js/expr.js', 'js/reptes.js', 'js/puzzle.js', 'js/medals.js', 'js/backend.js', 'js/sound.js', 'js/app.js');
+      combinaSplash.at(.1);
+      list.forEach(function (src, i) {
+        var s = document.createElement('script');
+        s.src = src; s.async = false;
+        s.onload = function () { combinaSplash.at(.1 + .6 * (i + 1) / list.length); };
+        document.body.appendChild(s);
       });
-    }
+    })();
   </script>
-  <script>combinaSplash.at(.35);</script>
-  <script src="js/expr.js"></script>
-  <script src="js/reptes.js"></script>
-  <script src="js/puzzle.js"></script>
-  <script>combinaSplash.at(.55);</script>
-  <script src="js/medals.js"></script>
-  <script src="js/backend.js"></script>
-  <script src="js/sound.js"></script>
-  <script src="js/app.js"></script>
-  <script>combinaSplash.at(.7);</script>
   <!-- Estadístiques de visites (GoatCounter: sense galetes ni dades personals) -->
   <script data-goatcounter="https://combina.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 </body>

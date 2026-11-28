@@ -2441,7 +2441,9 @@
   });
   window.addEventListener('appinstalled', () => { installEvt = null; track('pwa_installada', 'App instal·lada'); });
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
-    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+    // Els scripts es carreguen sense bloquejar: potser la pàgina ja ha acabat de carregar
+    const regSW = () => navigator.serviceWorker.register('sw.js').catch(() => {});
+    if (document.readyState === 'complete') regSW(); else window.addEventListener('load', regSW);
   }
 
   function installBtn() {
